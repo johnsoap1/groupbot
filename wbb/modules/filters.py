@@ -24,6 +24,7 @@ SOFTWARE.
 
 import re
 from pyrogram import filters
+from wbb import app
 from pyrogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
