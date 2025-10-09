@@ -1,30 +1,12 @@
 """
-MIT License
-
-Copyright (c) 2024 TheHamkerCat
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Music Module - Download and search for music
+Supports YouTube, SoundCloud, and other platforms via ARQ
 """
 
+import asyncio
 import datetime
+import logging
 import os
-from asyncio import get_running_loop
 from functools import partial
 from io import BytesIO
 
@@ -33,129 +15,277 @@ from pytube import YouTube
 from requests import get
 
 from wbb import aiohttpsession as session
-from wbb import app, arq
+from wbb import app, arq, SUDOERS
 from wbb.core.decorators.errors import capture_err
 from wbb.utils.pastebin import paste
 
+logger = logging.getLogger(__name__)
+
 __MODULE__ = "Music"
 __HELP__ = """
-/ytmusic [link] To Download Music From Various Websites Including Youtube. [SUDOERS]
-/saavn [query] To Download Music From Saavn.
-/lyrics [query] To Get Lyrics Of A Song.
+**Music Module**
+
+Download and search for music from various sources.
+
+**Commands:**
+
+`/ytmusic [link or query]`  - Download music from YouTube or search [SUDOERS]
+`/saavn [query]`  - Download music from Saavn (JioSaavn)
+`/lyrics [query]`  - Get lyrics for a song
+
+**Examples:**
+
+`/ytmusic https://youtube.com/watch?v=...`
+`/ytmusic Bohemian Rhapsody` 
+`/saavn Shape of You` 
+`/lyrics Blinding Lights` 
+
+**Note:** Video duration limit is 30 minutes for YouTube downloads
 """
 
-is_downloading = False
+# Use asyncio lock instead of global flag for better concurrency control
+download_lock = asyncio.Lock()
+MAX_DURATION = 1800  # 30 minutes in seconds
+TEMP_DIR = "downloads"
+
+# Ensure temp directory exists
+if not os.path.exists(TEMP_DIR):
+    os.makedirs(TEMP_DIR)
 
 
 def download_youtube_audio(arq_resp):
-    r = arq_resp.result[0]
-
-    title = r.title
-    performer = r.channel
-
-    m, s = r.duration.split(":")
-    duration = int(
-        datetime.timedelta(minutes=int(m), seconds=int(s)).total_seconds()
-    )
-
-    if duration > 1800:
-        return
-
-    thumb = get(r.thumbnails[0]).content
-    with open("thumbnail.png", "wb") as f:
-        f.write(thumb)
-    thumbnail_file = "thumbnail.png"
-
-    url = f"https://youtube.com{r.url_suffix}"
-    yt = YouTube(url)
-    audio = yt.streams.filter(only_audio=True).get_audio_only()
-
-    out_file = audio.download()
-    base, _ = os.path.splitext(out_file)
-    audio_file = base + ".mp3"
-    os.rename(out_file, audio_file)
-
-    return [title, performer, duration, audio_file, thumbnail_file]
+    """Download audio from YouTube response"""
+    try:
+        r = arq_resp.result[0]
+        title = r.title
+        performer = r.channel
+        
+        # Parse duration safely
+        m, s = r.duration.split(":")
+        duration = int(datetime.timedelta(minutes=int(m), seconds=int(s)).total_seconds())
+        
+        # Check duration limit
+        if duration > MAX_DURATION:
+            return None
+        
+        # Download thumbnail
+        try:
+            thumb = get(r.thumbnails[0], timeout=5).content
+            thumbnail_file = os.path.join(TEMP_DIR, f"thumbnail_{title[:50]}.png")
+            with open(thumbnail_file, "wb") as f:
+                f.write(thumb)
+        except Exception as e:
+            logger.warning(f"Failed to download thumbnail: {e}")
+            thumbnail_file = None
+        
+        # Download from YouTube
+        url = f"https://youtube.com{r.url_suffix}"
+        yt = YouTube(url)
+        audio = yt.streams.filter(only_audio=True).first()
+        
+        if not audio:
+            return None
+        
+        out_file = audio.download(output_path=TEMP_DIR)
+        base, _ = os.path.splitext(out_file)
+        audio_file = base + ".mp3"
+        
+        try:
+            os.rename(out_file, audio_file)
+        except FileExistsError:
+            os.remove(out_file)
+        
+        return {
+            "title": title,
+            "performer": performer,
+            "duration": duration,
+            "audio_file": audio_file,
+            "thumbnail_file": thumbnail_file
+        }
+    
+    except Exception as e:
+        logger.error(f"Error downloading YouTube audio: {e}")
+        return None
 
 
 @app.on_message(filters.command("ytmusic"))
 @capture_err
 async def music(_, message):
-    global is_downloading
-    if len(message.command) < 2:
-        return await message.reply_text("/ytmusic needs a query as argument")
-
-    url = message.text.split(None, 1)[1]
-    if is_downloading:
+    """Download music from YouTube"""
+    
+    # Check if user is sudoer
+    if message.from_user.id not in SUDOERS:
         return await message.reply_text(
-            "Another download is in progress, try again after sometime."
+            "❌ This command is only available for sudoers!"
         )
-    is_downloading = True
-    m = await message.reply_text(
-        f"Downloading {url}", disable_web_page_preview=True
-    )
-    try:
-        loop = get_running_loop()
-        arq_resp = await arq.youtube(url)
-        music = await loop.run_in_executor(
-            None, partial(download_youtube_audio, arq_resp)
+    
+    if len(message.command) < 2:
+        return await message.reply_text(
+            "❌ Usage: `/ytmusic [YouTube URL or search query]` "
         )
-
-        if not music:
-            return await message.reply_text("[ERROR]: MUSIC TOO LONG")
-        (
-            title,
-            performer,
-            duration,
-            audio_file,
-            thumbnail_file,
-        ) = music
-    except Exception as e:
-        is_downloading = False
-        return await m.edit(str(e))
-    await message.reply_audio(
-        audio_file,
-        duration=duration,
-        performer=performer,
-        title=title,
-        thumb=thumbnail_file,
-    )
-    await m.delete()
-    os.remove(audio_file)
-    os.remove(thumbnail_file)
-    is_downloading = False
+    
+    query = message.text.split(None, 1)[1]
+    
+    # Use lock to prevent multiple concurrent downloads
+    if download_lock.locked():
+        return await message.reply_text(
+            "⏳ Another download is in progress. Please wait..."
+        )
+    
+    async with download_lock:
+        status_msg = await message.reply_text(
+            f"🎵 Searching for: `{query}` ..."
+        )
+        
+        try:
+            # Search for the song
+            arq_resp = await arq.youtube(query)
+            
+            if not arq_resp or not arq_resp.result:
+                return await status_msg.edit_text(
+                    "❌ No results found for your query."
+                )
+            
+            await status_msg.edit_text(
+                f"⬇️ Downloading: `{arq_resp.result[0].title}` ..."
+            )
+            
+            # Download in executor to avoid blocking
+            loop = asyncio.get_event_loop()
+            music_data = await loop.run_in_executor(
+                None, partial(download_youtube_audio, arq_resp)
+            )
+            
+            if not music_data:
+                return await status_msg.edit_text(
+                    "❌ **Error:** Video is too long (max 30 minutes allowed)"
+                )
+            
+            # Send the audio file
+            await message.reply_audio(
+                audio=music_data["audio_file"],
+                duration=music_data["duration"],
+                performer=music_data["performer"],
+                title=music_data["title"],
+                thumb=music_data["thumbnail_file"] if music_data["thumbnail_file"] else None,
+            )
+            
+            await status_msg.delete()
+            
+            # Cleanup files
+            try:
+                if os.path.exists(music_data["audio_file"]):
+                    os.remove(music_data["audio_file"])
+                if music_data["thumbnail_file"] and os.path.exists(music_data["thumbnail_file"]):
+                    os.remove(music_data["thumbnail_file"])
+            except Exception as e:
+                logger.warning(f"Failed to cleanup files: {e}")
+        
+        except Exception as e:
+            logger.error(f"Error in music download: {e}")
+            await status_msg.edit_text(
+                f"❌ **Error:** {str(e)[:100]}"
+            )
 
 
 async def download_song(url):
-    async with session.get(url) as resp:
-        song = await resp.read()
-    song = BytesIO(song)
-    song.name = "a.mp3"
-    return song
+    """Download song from URL"""
+    try:
+        async with session.get(url, timeout=30) as resp:
+            song = await resp.read()
+        song_bytes = BytesIO(song)
+        song_bytes.name = "song.mp3"
+        return song_bytes
+    except Exception as e:
+        logger.error(f"Error downloading song: {e}")
+        return None
 
 
-# Lyrics
+@app.on_message(filters.command("saavn"))
+@capture_err
+async def saavn_music(_, message):
+    """Download music from Saavn (JioSaavn)"""
+    
+    if len(message.command) < 2:
+        return await message.reply_text(
+            "❌ Usage: `/saavn [song name]` "
+        )
+    
+    query = message.text.split(None, 1)[1]
+    m = await message.reply_text("🔍 Searching on Saavn...")
+    
+    try:
+        resp = await arq.saavn(query)
+        
+        if not resp or not resp.result:
+            return await m.edit("❌ No results found on Saavn.")
+        
+        song = resp.result[0]
+        song_name = song.get("song", "Unknown")
+        artist = song.get("artist", "Unknown")
+        url = song.get("url")
+        
+        if not url:
+            return await m.edit("❌ Could not fetch song URL.")
+        
+        await m.edit(f"⬇️ Downloading: `{song_name}` ...")
+        
+        song_file = await download_song(url)
+        
+        if not song_file:
+            return await m.edit("❌ Failed to download the song.")
+        
+        await message.reply_audio(
+            audio=song_file,
+            title=song_name,
+            performer=artist
+        )
+        
+        await m.delete()
+    
+    except Exception as e:
+        logger.error(f"Error in Saavn: {e}")
+        await m.edit(f"❌ **Error:** {str(e)[:100]}")
 
 
 @app.on_message(filters.command("lyrics"))
+@capture_err
 async def lyrics_func(_, message):
+    """Get lyrics for a song"""
+    
     if len(message.command) < 2:
-        return await message.reply_text("**Usage:**\n/lyrics [QUERY]")
-    m = await message.reply_text("**Searching**")
+        return await message.reply_text(
+            "❌ Usage: `/lyrics [song name]` "
+        )
+    
     query = message.text.strip().split(None, 1)[1]
-
-    resp = await arq.lyrics(query)
-
-    if not (resp.ok and resp.result):
-        return await m.edit("No lyrics found.")
-
-    song = resp.result[0]
-    song_name = song["song"]
-    artist = song["artist"]
-    lyrics = song["lyrics"]
-    msg = f"**{song_name}** | **{artist}**\n\n__{lyrics}__"
-
-    if len(msg) > 4095:
-        msg = await paste(msg)
-        msg = f"**LYRICS_TOO_LONG:** [URL]({msg})"
-    return await m.edit(msg)
+    m = await message.reply_text("🔍 Searching for lyrics...")
+    
+    try:
+        resp = await arq.lyrics(query)
+        
+        if not resp or not resp.ok or not resp.result:
+            return await m.edit("❌ No lyrics found for that song.")
+        
+        song = resp.result[0]
+        song_name = song.get("song", "Unknown")
+        artist = song.get("artist", "Unknown")
+        lyrics = song.get("lyrics", "N/A")
+        
+        # Format message
+        msg = f"🎵 **{song_name}** | **{artist}**\n\n{lyrics}"
+        
+        # If too long, use pastebin
+        if len(msg) > 4095:
+            try:
+                paste_url = await paste(msg)
+                msg = f"🎵 **{song_name}** | **{artist}**\n\n[Lyrics too long - Click here]({paste_url})"
+            except Exception as e:
+                logger.error(f"Pastebin error: {e}")
+                msg = f"🎵 **{song_name}** | **{artist}**\n\n⚠️ Lyrics too long to display"
+        
+        await m.edit(msg)
+    
+    except Exception as e:
+        logger.error(f"Error fetching lyrics: {e}")
+        await m.edit(f"❌ **Error:** {str(e)[:100]}")
