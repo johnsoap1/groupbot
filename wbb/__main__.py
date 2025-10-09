@@ -34,10 +34,10 @@ from pyrogram.types import (
     InlineKeyboardMarkup,
     Message,
     LinkPreviewOptions,
-    ParseMode,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
+from pyrogram.enums import ParseMode
 from uvloop import install
 
 from wbb import (
