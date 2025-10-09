@@ -72,6 +72,6 @@ async def mkdwnhelp(_, m: Message):
         await m.reply(
             MARKDOWN,
             parse_mode=ParseMode.HTML,
-            link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
+            link_preview_options=LinkPreviewOptions(disable_web_page_preview=True)
         )
     return

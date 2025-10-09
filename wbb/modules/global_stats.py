@@ -24,12 +24,12 @@ SOFTWARE.
 import asyncio
 
 from pyrogram import filters
-from pyrogram.types import CallbackQuery, Message, MessageLinkPreviewOptions
+from pyrogram.types import CallbackQuery, Message, LinkPreviewOptions
 from pyrogram.errors import FloodWait
 
 from wbb import BOT_ID, BOT_NAME, SUDOERS, USERBOT_NAME, app, app2
 from wbb.core.decorators.errors import capture_err
-from wbb.modules import ALL_MODULES
+from wbb.utils.dbfunctions import (
     get_blacklist_filters_count,
     get_filters_count,
     get_gbans_count,
@@ -41,6 +41,7 @@ from wbb.modules import ALL_MODULES
     get_warns_count,
     remove_served_chat,
 )
+from wbb.modules import ALL_MODULES
 from wbb.utils.http import get
 from wbb.utils.inlinefuncs import keywords_list
 
@@ -83,7 +84,7 @@ async def global_stats(_, message):
     m = await app.send_message(
         message.chat.id,
         text="__**Analysing Stats...**__",
-        link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
+        link_preview_options=LinkPreviewOptions(disable_web_page_preview=True)
     )
 
     # For bot served chat and users count
@@ -169,5 +170,5 @@ async def global_stats(_, message):
 """
     await m.edit(
         msg,
-        link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
+        link_preview_options=LinkPreviewOptions(disable_web_page_preview=True)
     )
