@@ -11,7 +11,7 @@ from pyrogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
-    MessageLinkPreviewOptions,
+    LinkPreviewOptions,
     User,
 )
 
