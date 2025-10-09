@@ -14,59 +14,44 @@ from wbb import app, LOG_GROUP_ID
 LOG_COMMANDS = True  # Set to False to disable command logging
 LOG_CHAT_ID = LOG_GROUP_ID  # Uses the bot's log group by default
 
-
-@app.on_message(filters.command(None) & ~filters.private)
-async def delete_all_commands(client, message: Message):
-    """
-    Detects any message starting with '/', logs it, and deletes it.
-    Works in all group chats where the bot has delete permissions.
-    """
-    # Don't process if the message is empty or doesn't have text
-    if not message.text:
-        return
-
-    command_text = message.text
-    chat = message.chat
-    sender = message.from_user
-
-    # Skip if the message is from the bot itself
-    if sender and sender.is_self:
-        return
-
-    # Optional logging
-    if LOG_COMMANDS and LOG_CHAT_ID:
-        try:
-            # Format the log message
+@app.on_message(~filters.private)
+async def delete_commands(client, message: Message):
+    """Delete command messages in groups"""
+    try:
+        # Skip if the message is from a bot or not a text message
+        if not message.text or (message.from_user and message.from_user.is_bot):
+            return
+            
+        # Check if message starts with a command
+        if not message.text.startswith('/'):
+            return
+            
+        # Delete the command message
+        await message.delete()
+        
+        # Log the deleted command if logging is enabled
+        if LOG_COMMANDS and LOG_CHAT_ID:
             log_text = (
-                f"🚫 Command deleted in {chat.title or 'a group'}\n"
-                f"👤 User: {sender.mention if sender else 'Unknown'} "
-                f"({sender.id if sender else 'N/A'})\n"
-                f"💬 Command: `{command_text}`\n"
-                f"🆔 Chat ID: `{chat.id}`"
+                f"Deleted command in {message.chat.title} (ID: {message.chat.id})\n"
+                f"User: {message.from_user.mention if message.from_user else 'Unknown'}"
+                f" (ID: {message.from_user.id if message.from_user else 'N/A'})\n"
+                f"Command: {message.text}\n"
             )
             
-            # Send the log message
-            await client.send_message(
-                LOG_CHAT_ID,
+            # Send log to the log chat
+            await app.send_message(
+                chat_id=LOG_CHAT_ID,
                 text=log_text,
                 disable_web_page_preview=True
             )
-        except Exception as e:
-            print(f"[Command Cleaner] Failed to log command: {e}")
-
-    # Attempt to delete the command
-    try:
-        await message.delete()
+            
     except Exception as e:
-        error_msg = f"[Command Cleaner] Failed to delete command in chat {chat.id}: {e}"
-        print(error_msg)
-        
-        # Log the error if logging is enabled
-        if LOG_COMMANDS and LOG_CHAT_ID:
+        # Log any errors but don't crash the handler
+        if LOG_CHAT_ID:
             try:
-                await client.send_message(
-                    LOG_CHAT_ID,
-                    f"❌ Failed to delete command in {chat.title or 'a group'}: {str(e)[:100]}"
+                await app.send_message(
+                    chat_id=LOG_CHAT_ID,
+                    text=f"❌ Error in command_cleaner: {str(e)[:300]}"
                 )
             except Exception as log_err:
                 print(f"[Command Cleaner] Failed to log error: {log_err}")
