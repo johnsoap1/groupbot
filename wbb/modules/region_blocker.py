@@ -8,7 +8,7 @@ from pyrogram import filters, Client
 from pyrogram.types import Message, ChatMember
 from wbb import app, SUDOERS
 import logging
-from motor.motor_asyncio import AsyncMotorCollection
+from motor.motor_asyncio import AsyncIOMotorCollection
 from wbb.core.mongo import db
 import re
 
