@@ -9,7 +9,7 @@ from pyrogram.types import Message
 from wbb import app, SUDOERS
 from wbb.core.decorators import sudo_required
 import logging
-from motor.motor_asyncio import AsyncMotorCollection
+from motor.motor_asyncio import AsyncIOMotorCollection
 from wbb.core.mongo import db
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ Media trigger:
 
 class TriggerDB:
     def __init__(self):
-        self.col: AsyncMotorCollection = db.triggers
+        self.col: AsyncIOMotorCollection = db.triggers
 
     async def add_trigger(self, trigger: str, response: str = None, 
                          media_id: str = None, media_type: str = None):
