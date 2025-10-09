@@ -89,46 +89,92 @@ Translate text using DeepL API (if configured) or Google Translate.
     def detect_language(text):
         """Detect language of the text"""
         try:
+            # GoogleTranslator.detect() returns a string like 'en', 'fr', etc.
             return GoogleTranslator(source='auto', target='en').detect(text)
-        except Exception:
+        except Exception as e:
+            print(f"Language detection error: {e}")
             return None
     
     def translate_text(text, target_lang, source_lang='auto'):
         """Translate text using DeepL or fallback to Google Translate"""
-        try:
-            # Try DeepL first if API key is available
-            if DEEPL_API:
+        print(f"[DEBUG] translate_text - Source: {source_lang}, Target: {target_lang}")
+        print(f"[DEBUG] Text length: {len(text)} chars")
+        
+        # Normalize language codes
+        target_lang = target_lang.lower()
+        if source_lang != 'auto':
+            source_lang = source_lang.lower()
+        
+        # Handle Chinese variants
+        if target_lang in ['zh-cn', 'zh_tw', 'zh-tw']:
+            target_lang = 'zh-TW'
+        
+        # Try DeepL first if API key is available and target language is supported
+        if DEEPL_API and target_lang.upper() in DEEPL_LANGS:
+            try:
                 import deepl
                 translator = deepl.Translator(DEEPL_API)
                 
-                # Convert language code to DeepL format if needed
-                if target_lang.lower() == 'zh':
-                    target_lang = 'zh'
-                elif len(target_lang) > 2:
-                    target_lang = target_lang[:2].upper()
-                else:
-                    target_lang = target_lang.upper()
+                # Convert to DeepL format (uppercase, 2-letter code)
+                deepl_target = target_lang[:2].upper()
                 
-                if source_lang == 'auto':
-                    result = translator.translate_text(text, target_lang=target_lang)
+                # For DeepL, source can be None for auto-detection
+                deepl_source = source_lang[:2].upper() if source_lang != 'auto' else None
+                
+                print(f"[DEBUG] Using DeepL: {deepl_source} -> {deepl_target}")
+                
+                if deepl_source:
+                    result = translator.translate_text(
+                        text,
+                        source_lang=deepl_source,
+                        target_lang=deepl_target
+                    )
                 else:
                     result = translator.translate_text(
-                        text, 
-                        source_lang=source_lang,
-                        target_lang=target_lang
+                        text,
+                        target_lang=deepl_target
                     )
+                
+                print(f"[DEBUG] DeepL translation successful")
                 return result.text, "DeepL"
-        except Exception as e:
-            print(f"DeepL Error: {e}")
-            # Fall through to Google Translate
+                
+            except Exception as e:
+                print(f"[ERROR] DeepL translation failed: {str(e)}")
+                # Fall through to Google Translate
         
         # Fallback to Google Translate
         try:
-            translator = GoogleTranslator(source=source_lang, target=target_lang)
-            translated = translator.translate(text)
+            print(f"[DEBUG] Using Google Translate: {source_lang} -> {target_lang}")
+            
+            # Google expects source='auto' for auto-detection
+            google_source = 'auto' if source_lang == 'auto' else source_lang
+            
+            translator = GoogleTranslator(
+                source=google_source,
+                target=target_lang
+            )
+            
+            # Split long text to avoid hitting API limits
+            max_chunk_size = 5000
+            if len(text) > max_chunk_size:
+                chunks = [text[i:i+max_chunk_size] for i in range(0, len(text), max_chunk_size)]
+                translated_chunks = []
+                for chunk in chunks:
+                    translated = translator.translate(chunk)
+                    if translated is None:
+                        raise Exception("Translation returned None")
+                    translated_chunks.append(translated)
+                translated = ' '.join(translated_chunks)
+            else:
+                translated = translator.translate(text)
+                if translated is None:
+                    raise Exception("Translation returned None")
+            
+            print("[DEBUG] Google Translate successful")
             return translated, "Google"
+            
         except Exception as e:
-            print(f"Google Translate Error: {e}")
+            print(f"[ERROR] Google Translate failed: {str(e)}")
             return None, None
     
     @app.on_message(filters.command("translate") & ~filters.private)
@@ -153,8 +199,14 @@ Translate text using DeepL API (if configured) or Google Translate.
         if target_lang in ['zh-cn', 'zh_tw', 'zh-tw']:
             target_lang = 'zh-TW'
         
-        # Check if language is supported
-        if target_lang not in GOOGLE_LANGS and target_lang.upper() not in DEEPL_LANGS:
+        # Normalize target language for checking
+        check_lang = target_lang.lower()
+        # Check if language is supported by either service
+        if (check_lang not in GOOGLE_LANGS and 
+            check_lang.upper() not in DEEPL_LANGS):
+            # Also check without region code
+            base_lang = check_lang.split('-')[0]
+            if base_lang not in GOOGLE_LANGS and base_lang.upper() not in DEEPL_LANGS:
             await message.reply_text(
                 "Unsupported language code. Use /langs to see available languages."
             )
@@ -162,9 +214,13 @@ Translate text using DeepL API (if configured) or Google Translate.
         
         text = message.reply_to_message.text
         
-        # Detect source language
+        # Detect source language if not specified
         detected = detect_language(text)
-        source_lang = detected.lang if detected else 'auto'
+        source_lang = detected if detected else 'auto'
+        
+        print(f"[DEBUG] Detected language: {source_lang}")
+        print(f"[DEBUG] Target language: {target_lang}")
+        print(f"[DEBUG] Text sample: {text[:100]}..." if len(text) > 100 else f"[DEBUG] Text: {text}")
         
         # Translate the text
         translated, service = translate_text(text, target_lang, source_lang)
@@ -174,8 +230,13 @@ Translate text using DeepL API (if configured) or Google Translate.
             return
         
         # Get language names
-        source_name = LANG_NAMES.get(source_lang, source_lang) if source_lang != 'auto' else "Auto-detected"
-        target_name = LANG_NAMES.get(target_lang, target_lang)
+        source_name = LANG_NAMES.get(source_lang, source_lang.upper()) if source_lang != 'auto' else "Auto-detected"
+        target_name = LANG_NAMES.get(target_lang, target_lang.upper())
+        
+        # Ensure the translated text is not too long for Telegram
+        max_length = 4000  # Leave some room for the header
+        if len(translated) > max_length:
+            translated = translated[:max_length] + "... [truncated]"
         
         # Format the response
         response = (

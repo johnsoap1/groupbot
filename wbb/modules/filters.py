@@ -23,15 +23,16 @@ SOFTWARE.
 """
 
 import re
-
 from pyrogram import filters
 from pyrogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    Message,
+    MessageLinkPreviewOptions,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
 )
-
-from wbb import app
 from wbb.core.decorators.errors import capture_err
 from wbb.core.decorators.permissions import adminsOnly
 from wbb.core.keyboard import ikb
@@ -216,7 +217,7 @@ async def filters_re(_, message):
                 await message.reply_text(
                     text=data,
                     reply_markup=keyb,
-                    disable_web_page_preview=True,
+                    link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
                 )
             else:
                 if not file_id:

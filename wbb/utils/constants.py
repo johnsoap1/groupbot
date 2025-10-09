@@ -2,7 +2,18 @@
 
 from pyrogram.enums import ChatType, ParseMode
 from pyrogram.filters import command
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from pyrogram.types import (
+    CallbackQuery,
+    Chat,
+    ChatMember,
+    ChatMemberUpdated,
+    ChatPermissions,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    MessageLinkPreviewOptions,
+    User,
+)
 
 from wbb import BOT_USERNAME, app
 
@@ -10,7 +21,7 @@ MARKDOWN = """
 Read the below text carefully to find out how formatting works!
 
 <u>Supported Fillings:</u>
-
+{{ ... }}
 <code>{name}</code> - This will mention the user with their name.
 <code>{chat}</code> - This will fill with the current chat name.
 
@@ -59,6 +70,8 @@ async def mkdwnhelp(_, m: Message):
         )
     else:
         await m.reply(
-            MARKDOWN, parse_mode=ParseMode.HTML, disable_web_page_preview=True
+            MARKDOWN,
+            parse_mode=ParseMode.HTML,
+            link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
         )
     return

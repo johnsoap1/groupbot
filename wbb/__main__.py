@@ -21,14 +21,21 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-import asyncio
 import importlib
 import re
 from contextlib import closing, suppress
 
 from pyrogram import filters, idle
-from pyrogram.enums import ChatType, ParseMode
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram import __version__ as pyrogram_version
+from pyrogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    MessageLinkPreviewOptions,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+)
 from uvloop import install
 
 from wbb import (
@@ -228,7 +235,7 @@ async def start(_, message):
             await message.reply(
                 MARKDOWN,
                 parse_mode=ParseMode.HTML,
-                disable_web_page_preview=True,
+                link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
             )
         elif "_" in name:
             module = name.split("_", 1)[1]
@@ -240,14 +247,14 @@ async def start(_, message):
                 return await message.reply(
                     text=text,
                     reply_markup=FED_MARKUP,
-                    disable_web_page_preview=True,
+                    link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
                 )
             await message.reply(
                 text,
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton("back", callback_data="help_back")]]
                 ),
-                disable_web_page_preview=True,
+                link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True),
             )
         elif name == "help":
             text, keyb = await help_parser(message.from_user.first_name)
@@ -299,7 +306,10 @@ async def help_command(_, message):
                     f"Here is the help for **{HELPABLE[name].__MODULE__}**:\n"
                     + HELPABLE[name].__HELP__
                 )
-                await message.reply(text, disable_web_page_preview=True)
+                await message.reply(
+                    text,
+                    link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
+                )
             else:
                 text, help_keyboard = await help_parser(
                     message.from_user.first_name
@@ -307,14 +317,16 @@ async def help_command(_, message):
                 await message.reply(
                     text,
                     reply_markup=help_keyboard,
-                    disable_web_page_preview=True,
+                    link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
                 )
         else:
             text, help_keyboard = await help_parser(
                 message.from_user.first_name
             )
             await message.reply(
-                text, reply_markup=help_keyboard, disable_web_page_preview=True
+                text,
+                reply_markup=help_keyboard,
+                link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
             )
     return
 
@@ -383,14 +395,14 @@ General command are:
             return await query.message.edit(
                 text=text,
                 reply_markup=FED_MARKUP,
-                disable_web_page_preview=True,
+                link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True)
             )
         await query.message.edit(
             text=text,
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("back", callback_data="help_back")]]
             ),
-            disable_web_page_preview=True,
+            link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True),
         )
     elif home_match:
         await app.send_message(
@@ -406,7 +418,7 @@ General command are:
             reply_markup=InlineKeyboardMarkup(
                 paginate_modules(curr_page - 1, HELPABLE, "help")
             ),
-            disable_web_page_preview=True,
+            link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True),
         )
 
     elif next_match:
@@ -416,7 +428,7 @@ General command are:
             reply_markup=InlineKeyboardMarkup(
                 paginate_modules(next_page + 1, HELPABLE, "help")
             ),
-            disable_web_page_preview=True,
+            link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True),
         )
 
     elif back_match:
@@ -425,7 +437,7 @@ General command are:
             reply_markup=InlineKeyboardMarkup(
                 paginate_modules(0, HELPABLE, "help")
             ),
-            disable_web_page_preview=True,
+            link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True),
         )
 
     elif create_match:
@@ -433,7 +445,7 @@ General command are:
         await query.message.edit(
             text=text,
             reply_markup=keyboard,
-            disable_web_page_preview=True,
+            link_preview_options=MessageLinkPreviewOptions(disable_web_page_preview=True),
         )
 
     return await client.answer_callback_query(query.id)
