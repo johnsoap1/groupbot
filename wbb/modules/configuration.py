@@ -11,7 +11,7 @@ from pyrogram.types import (
 from pyrogram.errors import ChatAdminRequired
 from wbb import app, SUDOERS
 from wbb.core.decorators.errors import capture_err
-from motor.motor_asyncio import AsyncMotorCollection
+from motor.motor_asyncio import AsyncIOMotorCollection
 from wbb.core.mongo import db
 import logging
 import inspect
