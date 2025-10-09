@@ -28,7 +28,7 @@ from pyrogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
-    MessageLinkPreviewOptions,
+    LinkPreviewOptions,
 )
 from wbb import BOT_USERNAME, SUDOERS, USERBOT_PREFIX, app2
 from wbb.modules.userbot import eor
