@@ -48,7 +48,7 @@ from wbb import BOT_USERNAME, SUDOERS, WELCOME_DELAY_KICK_SEC, app
 from wbb.core.decorators.errors import capture_err
 from wbb.core.decorators.permissions import adminsOnly
 from wbb.core.keyboard import ikb
-from wbb.modules.notes import extract_urls
+from wbb.utils.url_utils import extract_urls, format_urls
 from wbb.utils.dbfeds import check_banned_user, get_fed_id
 from wbb.utils.dbfunctions import (
     captcha_off,
@@ -473,16 +473,14 @@ async def set_welcome_func(_, message):
         if replied_message.reply_markup and not findall(r"\[.+\,.+\]", raw_text):
             urls = extract_urls(replied_message.reply_markup)
             if urls:
-                response = "\n".join(
-                    [f"{name}=[{text}, {url}]" for name, text, url in urls]
-                )
+                response = format_urls(urls)
                 raw_text = raw_text + response
         raw_text = await check_format(ikb, raw_text)
         if raw_text:
             await set_welcome(chat_id, welcome, raw_text, file_id)
             return await message.reply_text(
                 "Welcome message has been successfully set."
-            )
+{{ ... }}
         else:
             return await message.reply_text(
                 "Wrong formatting, check the help section.\n\n**Usage:**\nText: `Text`\nText + Buttons: `Text ~ Buttons`",

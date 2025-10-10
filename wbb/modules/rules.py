@@ -29,7 +29,7 @@ from wbb import BOT_USERNAME, app
 from wbb.core.decorators.permissions import adminsOnly
 from wbb.core.keyboard import ikb
 from wbb.modules.admin import member_permissions
-from wbb.modules.notes import extract_urls
+from wbb.utils.url_utils import extract_urls, format_urls
 from wbb.utils.dbfunctions import delete_rules, get_rules, set_chat_rules
 from wbb.utils.functions import check_format
 
@@ -79,9 +79,7 @@ async def set_rules(_, message):
             if replied_message.reply_markup:
                 urls = extract_urls(replied_message.reply_markup)
                 if urls:
-                    response = "\n".join(
-                        [f"{name}=[{text}, {url}]" for name, text, url in urls]
-                    )
+                    response = format_urls(urls)
                     rules = rules + response
         else:
             text = message.text.markdown

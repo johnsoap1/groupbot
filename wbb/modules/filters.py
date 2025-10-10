@@ -38,7 +38,7 @@ from wbb.core.decorators.errors import capture_err
 from wbb.core.decorators.permissions import adminsOnly
 from wbb.core.keyboard import ikb
 from wbb.modules.admin import member_permissions
-from wbb.modules.notes import extract_urls
+from wbb.utils.url_utils import extract_urls, format_urls
 from wbb.utils.dbfunctions import (
     delete_filter,
     deleteall_filters,
@@ -117,9 +117,7 @@ async def save_filters(_, message):
         if replied_message.reply_markup and not re.findall(r"\[.+\,.+\]", data):
             urls = extract_urls(replied_message.reply_markup)
             if urls:
-                response = "\n".join(
-                    [f"{name}=[{text}, {url}]" for name, text, url in urls]
-                )
+                response = format_urls(urls)
                 data = data + response
         if data:
             data = await check_format(ikb, data)
