@@ -24,6 +24,8 @@ SOFTWARE.
 import asyncio
 import importlib
 import re
+import sys
+import traceback
 from contextlib import closing, suppress
 
 from pyrogram import filters, idle
@@ -73,11 +75,11 @@ async def start_bot():
         await init_greetings()
         print("[MODULE_LOADER] Greetings module initialized successfully")
     except ImportError as e:
-        log.error(f"Failed to initialize greetings module: {e}")
-        traceback.print_exc()
+        print(f"[ERROR] Failed to initialize greetings module: {e}")
+        traceback.print_exc(file=sys.stderr)
     except Exception as e:
-        log.error(f"Error in greetings module: {e}")
-        traceback.print_exc()
+        print(f"[ERROR] Error in greetings module: {e}")
+        traceback.print_exc(file=sys.stderr)
 
     # Track loaded and failed modules
     loaded_modules = []
@@ -536,52 +538,68 @@ async def main():
     except KeyboardInterrupt:
         log.warning("Bot stopped by user")
     except Exception as e:
-        log.error("An error occurred:", exc_info=True)
+        print("[ERROR] An error occurred:")
+        traceback.print_exc(file=sys.stderr)
     finally:
-        # Cleanup resources
-        log.info("Cleaning up resources...")
-        if 'aiohttpsession' in globals():
-            await aiohttpsession.close()
-        log.info("Bot stopped")
+        try:
+            if 'aiohttpsession' in globals() and aiohttpsession:
+                await aiohttpsession.close()
+            print("\n[INFO] Bot stopped")
+        except Exception as e:
+            print(f"[ERROR] Error during cleanup: {e}")
+            traceback.print_exc(file=sys.stderr)
 
 if __name__ == "__main__":
     # Create and run the event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
     try:
         loop.run_until_complete(main())
     except KeyboardInterrupt:
-        log.warning("Received exit signal")
+        print("\n[INFO] Received exit signal, shutting down...")
     except Exception as e:
-        log.error("Fatal error in main loop:", exc_info=True)
+        print("\n[FATAL] Error in main loop:")
+        traceback.print_exc(file=sys.stderr)
     finally:
-        # Properly close the event loop
         try:
-            # Cancel all running tasks
-            pending = asyncio.all_tasks(loop=loop)
+            if loop.is_running():
+                loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
+        except Exception as e:
+            print("[ERROR] Error during cleanup:")
+            traceback.print_exc(file=sys.stderr)
+        print("[INFO] Bot shutdown complete")
+        
+        try:
+            # Get all pending tasks
+            pending = [t for t in asyncio.all_tasks(loop=loop) if not t.done()]
+            
+            # Cancel all pending tasks
             for task in pending:
                 task.cancel()
             
             # Run the loop until all tasks are done
             if pending:
-                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                
-            # Stop and close the loop
+                try:
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                except Exception as e:
+                    print(f"[ERROR] Error during task cleanup: {e}")
+                    traceback.print_exc(file=sys.stderr)
+            
+            # Ensure the loop is properly closed
             if loop.is_running():
                 loop.stop()
-                
+            
             if not loop.is_closed():
                 loop.close()
                 
-            # Run remaining async generators
-            loop.run_until_complete(loop.shutdown_asyncgens())
+            print("[INFO] Event loop closed")
             
-            log.info("Event loop closed")
         except Exception as e:
-            log.error("Error during cleanup:", exc_info=True)
+            print(f"[ERROR] Error during cleanup: {e}")
+            traceback.print_exc(file=sys.stderr)
         finally:
-            # Close the loop if it's still open
+            # Final cleanup
             if loop.is_running():
                 loop.stop()
             if not loop.is_closed():
