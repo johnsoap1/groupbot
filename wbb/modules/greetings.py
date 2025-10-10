@@ -480,7 +480,7 @@ async def set_welcome_func(_, message):
             await set_welcome(chat_id, welcome, raw_text, file_id)
             return await message.reply_text(
                 "Welcome message has been successfully set."
-{{ ... }}
+            )
         else:
             return await message.reply_text(
                 "Wrong formatting, check the help section.\n\n**Usage:**\nText: `Text`\nText + Buttons: `Text ~ Buttons`",
