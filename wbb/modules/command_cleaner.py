@@ -15,7 +15,13 @@ from pyrogram.types import Message
 from typing import Dict, List, Optional, Union
 import re
 
-from wbb import app, LOG_GROUP_ID
+from wbb import app
+
+# Fallback for LOG_GROUP_ID if not in config
+try:
+    from wbb import LOG_GROUP_ID
+except ImportError:
+    LOG_GROUP_ID = None
 
 # Configuration
 LOG_COMMANDS = True  # Set to False to disable command logging
@@ -68,16 +74,20 @@ async def log_command_deletion(message: Message, command: str):
         await app.send_message(
             chat_id=LOG_CHAT_ID,
             text=log_text,
-            disable_web_page_preview=True
         )
     except Exception as e:
         # Don't crash if logging fails
         print(f"Error logging command deletion: {e}")
 
-@app.on_message(filters.group & ~filters.private & ~filters.service)
+print("✅ Command Cleaner module loaded successfully!")
+
+@app.on_message(filters.group & ~filters.private & ~filters.service & filters.text)
 async def command_cleaner_handler(_, message: Message):
     """Handle command messages in groups and delete them."""
     try:
+        # Debug log
+        print(f"Processing message in chat {message.chat.id}: {message.text}")
+        
         # Skip if the message is not a text message or is from a bot
         if not message.text or (message.from_user and message.from_user.is_bot):
             return
@@ -86,37 +96,54 @@ async def command_cleaner_handler(_, message: Message):
         if not is_command(message.text):
             return
             
+        print(f"Detected command to clean: {message.text}")
+            
         # Check if we have permission to delete messages
         if not await can_delete_messages(message):
+            print("Bot doesn't have permission to delete messages")
             return
             
-        # Delete the command message
-        await message.delete()
-        
-        # Log the deleted command
-        await log_command_deletion(message, message.text.split()[0])
+        try:
+            # Delete the command message
+            await message.delete()
+            print(f"Successfully deleted command: {message.text}")
+            
+            # Log the deleted command
+            await log_command_deletion(message, message.text.split()[0])
+            
+        except Exception as delete_error:
+            print(f"Failed to delete message: {delete_error}")
             
     except Exception as e:
         # Log any errors but don't crash the handler
-        error_msg = f"Error in command_cleaner: {str(e)}"
+        print(f"Error in command_cleaner: {e}")
+        import traceback
+        traceback.print_exc()
         if LOG_CHAT_ID:
             try:
-                await app.send_message(LOG_CHAT_ID, error_msg[:300])
+                await app.send_message(LOG_CHAT_ID, str(e)[:300])
             except:
                 pass
 
 async def can_delete_messages(message: Message) -> bool:
     """Check if the bot has permission to delete messages in the chat."""
     try:
-        # Check bot's permissions in the chat
-        chat_member = await message.chat.get_member("me")
-        return chat_member.can_delete_messages if chat_member else False
+        if not message.chat or not message.chat.type in ["group", "supergroup"]:
+            return False
+            
+        # Check if the bot is an admin with delete permissions
+        me = await app.get_me()
+        member = await message.chat.get_member(me.id)
+        return bool(member and hasattr(member, 'can_delete_messages') and member.can_delete_messages)
+    except Exception as e:
+        print(f"Error checking delete permissions: {e}")
+        return False
     except Exception:
         return False
 
 __MODULE__ = "Command Cleaner"
 __HELP__ = """
-**Command Cleaner Module**
+{{ ... }}
 
 This module automatically deletes command messages in group chats to keep chats clean.
 

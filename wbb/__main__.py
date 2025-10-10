@@ -63,27 +63,86 @@ HELPABLE = {}
 async def start_bot():
     global HELPABLE
     
+    print("\n" + "="*80)
+    print(f"Starting bot with {len(ALL_MODULES)} modules to load")
+    print("="*80 + "\n")
+    
     # Initialize modules that need async setup
     try:
         from wbb.modules.greetings import init_greetings
         await init_greetings()
+        print("[MODULE_LOADER] Greetings module initialized successfully")
     except ImportError as e:
-        log.warning(f"Failed to initialize greetings module: {e}")
+        log.error(f"Failed to initialize greetings module: {e}")
+        traceback.print_exc()
+    except Exception as e:
+        log.error(f"Error in greetings module: {e}")
+        traceback.print_exc()
 
-    for module in ALL_MODULES:
-        imported_module = importlib.import_module("wbb.modules." + module)
-        if (
-            hasattr(imported_module, "__MODULE__")
-            and imported_module.__MODULE__
-        ):
-            imported_module.__MODULE__ = imported_module.__MODULE__
-            if (
-                hasattr(imported_module, "__HELP__")
-                and imported_module.__HELP__
-            ):
-                HELPABLE[
-                    imported_module.__MODULE__.replace(" ", "_").lower()
-                ] = imported_module
+    # Track loaded and failed modules
+    loaded_modules = []
+    failed_modules = {}
+
+    for module_name in ALL_MODULES:
+        try:
+            print(f"\n{'='*50}")
+            print(f"[MODULE_LOADER] Importing module: {module_name}")
+            
+            # Import the module
+            module_path = f"wbb.modules.{module_name}"
+            imported_module = importlib.import_module(module_path)
+            
+            # Check if module has required attributes
+            if not hasattr(imported_module, "__MODULE__") or not imported_module.__MODULE__:
+                print(f"[MODULE_LOADER] Warning: {module_name} is missing __MODULE__ attribute")
+                continue
+                
+            module_display_name = imported_module.__MODULE__
+            
+            if hasattr(imported_module, "__HELP__") and imported_module.__HELP__:
+                # Add to HELPABLE if it has help text
+                HELPABLE[module_display_name.replace(" ", "_").lower()] = imported_module
+                print(f"[MODULE_LOADER] Added to HELPABLE: {module_display_name}")
+            
+            # Call module initialization if it exists
+            if hasattr(imported_module, "__init__"):
+                try:
+                    if asyncio.iscoroutinefunction(imported_module.__init__):
+                        await imported_module.__init__()
+                    else:
+                        imported_module.__init__()
+                    print(f"[MODULE_LOADER] Initialized: {module_display_name}")
+                except Exception as e:
+                    print(f"[MODULE_LOADER] Error initializing {module_display_name}: {e}")
+                    traceback.print_exc()
+            
+            loaded_modules.append(module_display_name)
+            print(f"[MODULE_LOADER] Successfully loaded: {module_display_name}")
+            
+        except Exception as e:
+            error_msg = f"[MODULE_LOADER] Failed to load module {module_name}: {e}"
+            print(error_msg)
+            traceback.print_exc()
+            failed_modules[module_name] = str(e)
+    
+    # Print summary
+    print("\n" + "="*80)
+    print("MODULE LOADING SUMMARY")
+    print("="*80)
+    print(f"Total modules: {len(ALL_MODULES)}")
+    print(f"Successfully loaded: {len(loaded_modules)}")
+    print(f"Failed to load: {len(failed_modules)}")
+    
+    if failed_modules:
+        print("\nFailed modules:")
+        for module, error in failed_modules.items():
+            print(f"- {module}: {error}")
+    
+    print("\nLoaded modules:")
+    for i, module in enumerate(sorted(loaded_modules), 1):
+        print(f"{i}. {module}")
+    
+    print("\n" + "="*80 + "\n")
     bot_modules = ""
     j = 1
     for i in ALL_MODULES:

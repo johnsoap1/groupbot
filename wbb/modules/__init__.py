@@ -24,15 +24,16 @@ SOFTWARE.
 import glob
 import importlib
 import sys
-from os.path import basename, dirname, isfile
+import traceback
+from os.path import basename, dirname, isfile, join
 
-from wbb import MOD_LOAD, MOD_NOLOAD
-
+# Initialize MOD_LOAD and MOD_NOLOAD with defaults if not set
+MOD_LOAD = getattr(sys.modules.get('wbb'), 'MOD_LOAD', [])
+MOD_NOLOAD = getattr(sys.modules.get('wbb'), 'MOD_NOLOAD', [])
 
 def __list_all_modules():
-    # This generates a list of modules in this
-    # folder for the * in __main__ to work.
-    mod_paths = glob.glob(dirname(__file__) + "/*.py")
+    """Generate a list of all modules in the modules directory."""
+    mod_paths = glob.glob(join(dirname(__file__), "*.py"))
     all_modules = [
         basename(f)[:-3]
         for f in mod_paths
@@ -41,28 +42,32 @@ def __list_all_modules():
         and not f.endswith("__init__.py")
         and not f.endswith("__main__.py")
     ]
-
-    if MOD_LOAD or MOD_NOLOAD:
-        to_load = MOD_LOAD
-        if to_load:
-            if not all(
-                any(mod == module_name for module_name in all_modules)
-                for mod in to_load
-            ):
-                sys.exit()
-
-        else:
-            to_load = all_modules
-
-        if MOD_NOLOAD:
-            return [item for item in to_load if item not in MOD_NOLOAD]
-
-        return to_load
-
+    
+    print(f"[MODULE_LOADER] Found {len(all_modules)} modules: {', '.join(all_modules)}")
+    
+    # Apply MOD_LOAD and MOD_NOLOAD filters
+    if MOD_LOAD:
+        print(f"[MODULE_LOADER] MOD_LOAD is set, filtering modules: {MOD_LOAD}")
+        all_modules = [m for m in all_modules if m in MOD_LOAD]
+    
+    if MOD_NOLOAD:
+        print(f"[MODULE_LOADER] MOD_NOLOAD is set, excluding: {MOD_NOLOAD}")
+        all_modules = [m for m in all_modules if m not in MOD_NOLOAD]
+    
+    print(f"[MODULE_LOADER] Final module list: {all_modules}")
     return all_modules
 
+# Import __main__ module first to set up any required configurations
+print("[MODULE_LOADER] Initializing core modules...")
+try:
+    importlib.import_module("wbb.modules.__main__")
+    print("[MODULE_LOADER] Core modules initialized successfully")
+except Exception as e:
+    print(f"[MODULE_LOADER] Error initializing core modules: {e}")
+    traceback.print_exc()
 
-print("[INFO]: IMPORTING MODULES")
-importlib.import_module("wbb.modules.__main__")
+# Get the list of all modules to load
 ALL_MODULES = sorted(__list_all_modules())
 __all__ = ALL_MODULES + ["ALL_MODULES"]
+
+print(f"[MODULE_LOADER] Total modules to load: {len(ALL_MODULES)}")
