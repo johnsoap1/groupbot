@@ -445,50 +445,67 @@ async def set_welcome_func(_, message):
             ],
         ]
     )
-    replied_message = message.reply_to_message
-    chat_id = message.chat.id
+    
     try:
+        replied_message = message.reply_to_message
+        chat_id = message.chat.id
+        
         if not replied_message:
             await message.reply_text(usage, reply_markup=key)
             return
+            
         if replied_message.animation:
             welcome = "Animation"
             file_id = replied_message.animation.file_id
             text = replied_message.caption
             if not text:
-                return await message.reply_text(usage, reply_markup=key)
+                await message.reply_text(usage, reply_markup=key)
+                return
             raw_text = text.markdown
-        if replied_message.photo:
+        elif replied_message.photo:
             welcome = "Photo"
             file_id = replied_message.photo.file_id
             text = replied_message.caption
             if not text:
-                return await message.reply_text(usage, reply_markup=key)
+                await message.reply_text(usage, reply_markup=key)
+                return
             raw_text = text.markdown
-        if replied_message.text:
+        elif replied_message.text:
             welcome = "Text"
             file_id = None
             text = replied_message.text
             raw_text = text.markdown
+        else:
+            await message.reply_text(
+                "Unsupported message type. Please reply to a text, photo, or animation with a caption.",
+                reply_markup=key
+            )
+            return
+            
         if replied_message.reply_markup and not findall(r"\[.+\,.+\]", raw_text):
             urls = extract_urls(replied_message.reply_markup)
             if urls:
                 response = format_urls(urls)
                 raw_text = raw_text + response
+                
         raw_text = await check_format(ikb, raw_text)
-        if raw_text:
-            await set_welcome(chat_id, welcome, raw_text, file_id)
-            return await message.reply_text(
-                "Welcome message has been successfully set."
-            )
-        else:
-            return await message.reply_text(
+        if not raw_text:
+            await message.reply_text(
                 "Wrong formatting, check the help section.\n\n**Usage:**\nText: `Text`\nText + Buttons: `Text ~ Buttons`",
                 reply_markup=key,
             )
-    except UnboundLocalError:
-        return await message.reply_text(
+            return
+            
+        await set_welcome(chat_id, welcome, raw_text, file_id)
+        await message.reply_text("Welcome message has been successfully set.")
+        
+    except UnboundLocalError as e:
+        await message.reply_text(
             "**Only Text, Gif and Photo welcome message are supported.**"
+        )
+    except Exception as e:
+        await message.reply_text(
+            f"An error occurred while setting the welcome message: {str(e)}"
         )
 
 
