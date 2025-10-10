@@ -522,29 +522,51 @@ General command are:
 
 
 async def main():
+    """Main coroutine to start the bot with proper error handling."""
     # Install uvloop if available
     try:
         install()
+        print("[INFO] Using uvloop for better performance")
     except Exception as e:
-        log.warning(f"Failed to install uvloop: {e}")
+        print(f"[WARNING] Failed to install uvloop: {e}")
     
     try:
+        print("\n[INFO] Starting bot initialization...")
+        
         # Initialize the bot
         await start_bot()
+        
+        # Get the current event loop
+        loop = asyncio.get_event_loop()
+        
+        # Clean restart stage if needed
+        try:
+            restart_data = await clean_restart_stage()
+            if restart_data:
+                print(f"[INFO] Cleaned up restart data: {restart_data}")
+        except Exception as e:
+            print(f"[WARNING] Error cleaning restart stage: {e}")
+        
+        print("\n[SUCCESS] Bot is now running. Press Ctrl+C to stop.")
         
         # Keep the application running
         await idle()
         
     except KeyboardInterrupt:
-        log.warning("Bot stopped by user")
+        print("\n[INFO] Received stop signal, shutting down...")
     except Exception as e:
-        print("[ERROR] An error occurred:")
+        print("\n[FATAL] An error occurred:")
         traceback.print_exc(file=sys.stderr)
     finally:
+        print("\n[INFO] Starting cleanup process...")
         try:
+            # Clean up resources
             if 'aiohttpsession' in globals() and aiohttpsession:
                 await aiohttpsession.close()
-            print("\n[INFO] Bot stopped")
+                print("[INFO] Closed aiohttp session")
+                
+            print("[INFO] Cleanup complete")
+            
         except Exception as e:
             print(f"[ERROR] Error during cleanup: {e}")
             traceback.print_exc(file=sys.stderr)
@@ -553,55 +575,47 @@ if __name__ == "__main__":
     # Create and run the event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    
     try:
+        # Run the main coroutine
         loop.run_until_complete(main())
+        
     except KeyboardInterrupt:
-        print("\n[INFO] Received exit signal, shutting down...")
+        print("\n[INFO] Received stop signal in main thread")
     except Exception as e:
-        print("\n[FATAL] Error in main loop:")
+        print("\n[FATAL] Unhandled error in main thread:")
         traceback.print_exc(file=sys.stderr)
     finally:
-        try:
-            if loop.is_running():
-                loop.run_until_complete(loop.shutdown_asyncgens())
-            loop.close()
-        except Exception as e:
-            print("[ERROR] Error during cleanup:")
-            traceback.print_exc(file=sys.stderr)
-        print("[INFO] Bot shutdown complete")
+        print("\n[INFO] Starting final cleanup...")
         
-        try:
-            # Get all pending tasks
-            pending = [t for t in asyncio.all_tasks(loop=loop) if not t.done()]
-            
-            # Cancel all pending tasks
+        # Cancel all running tasks
+        pending = asyncio.all_tasks(loop=loop)
+        if pending:
+            print(f"[INFO] Cancelling {len(pending)} pending tasks...")
             for task in pending:
                 task.cancel()
             
-            # Run the loop until all tasks are done
-            if pending:
-                try:
-                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                except Exception as e:
-                    print(f"[ERROR] Error during task cleanup: {e}")
-                    traceback.print_exc(file=sys.stderr)
-            
-            # Ensure the loop is properly closed
+            # Run the loop to process cancellations
+            try:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            except Exception as e:
+                print(f"[WARNING] Error during task cancellation: {e}")
+        
+        # Close the event loop
+        try:
             if loop.is_running():
                 loop.stop()
+                
+            # Run remaining async generators
+            if not loop.is_closed():
+                loop.run_until_complete(loop.shutdown_asyncgens())
+                
+        except Exception as e:
+            print(f"[WARNING] Error during loop shutdown: {e}")
             
+        finally:
+            # Always close the loop
             if not loop.is_closed():
                 loop.close()
                 
-            print("[INFO] Event loop closed")
-            
-        except Exception as e:
-            print(f"[ERROR] Error during cleanup: {e}")
-            traceback.print_exc(file=sys.stderr)
-        finally:
-            # Final cleanup
-            if loop.is_running():
-                loop.stop()
-            if not loop.is_closed():
-                loop.close()
-            log.info("Event loop fully closed")
+    print("\n[INFO] Bot has been shut down. Goodbye!")

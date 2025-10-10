@@ -719,14 +719,45 @@ async def start_restart_stage(chat_id: int, message_id: int):
 
 
 async def clean_restart_stage() -> dict:
-    data = await restart_stagedb.find_one({"something": "something"})
-    if not data:
+    try:
+        # Get the current event loop
+        loop = asyncio.get_event_loop()
+        
+        # Ensure we're running in the correct event loop
+        if loop.is_running():
+            data = await restart_stagedb.find_one({"something": "something"})
+            if not data:
+                return {}
+            
+            await restart_stagedb.delete_one({"something": "something"})
+            return {
+                "chat_id": data.get("chat_id"),
+                "message_id": data.get("message_id"),
+            }
+        else:
+            # If no event loop is running, run the coroutine in a new event loop
+            return await loop.run_until_complete(_clean_restart_stage_internal())
+    except Exception as e:
+        print(f"[ERROR] Error in clean_restart_stage: {e}")
+        import traceback
+        traceback.print_exc()
         return {}
-    await restart_stagedb.delete_one({"something": "something"})
-    return {
-        "chat_id": data["chat_id"],
-        "message_id": data["message_id"],
-    }
+
+async def _clean_restart_stage_internal() -> dict:
+    """Internal function to handle the database operation with proper error handling."""
+    try:
+        data = await restart_stagedb.find_one({"something": "something"})
+        if not data:
+            return {}
+            
+        await restart_stagedb.delete_one({"something": "something"})
+        return {
+            "chat_id": data.get("chat_id"),
+            "message_id": data.get("message_id"),
+        }
+    except Exception as e:
+        print(f"[ERROR] Error in _clean_restart_stage_internal: {e}")
+        return {}
 
 
 async def is_flood_on(chat_id: int) -> bool:
