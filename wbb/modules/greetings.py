@@ -103,7 +103,6 @@ Checkout /markdownhelp to know more about formattings and other syntax.
 """
 
 answers_dicc = []
-loop = asyncio.get_running_loop()
 
 
 async def get_initial_captcha_cache():
@@ -112,7 +111,9 @@ async def get_initial_captcha_cache():
     return answers_dicc
 
 
-loop.create_task(get_initial_captcha_cache())
+# This will be called during bot startup
+async def init_greetings():
+    await get_initial_captcha_cache()
 
 
 async def handle_new_member(member, chat):

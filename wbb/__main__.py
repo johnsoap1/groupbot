@@ -57,13 +57,18 @@ from wbb.utils.constants import MARKDOWN
 from wbb.utils.dbfunctions import clean_restart_stage, get_rules
 from wbb.utils.functions import extract_text_and_keyb
 
-loop = asyncio.get_event_loop()
-
 HELPABLE = {}
 
 
 async def start_bot():
     global HELPABLE
+    
+    # Initialize modules that need async setup
+    try:
+        from wbb.modules.greetings import init_greetings
+        await init_greetings()
+    except ImportError as e:
+        log.warning(f"Failed to initialize greetings module: {e}")
 
     for module in ALL_MODULES:
         imported_module = importlib.import_module("wbb.modules." + module)
@@ -456,6 +461,12 @@ General command are:
 
 
 async def main():
+    # Install uvloop if available
+    try:
+        install()
+    except Exception as e:
+        log.warning(f"Failed to install uvloop: {e}")
+    
     try:
         # Initialize the bot
         await start_bot()
@@ -475,12 +486,6 @@ async def main():
         log.info("Bot stopped")
 
 if __name__ == "__main__":
-    # Install uvloop if available
-    try:
-        install()
-    except Exception as e:
-        log.warning(f"Failed to install uvloop: {e}")
-    
     # Create and run the event loop
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -490,7 +495,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log.warning("Received exit signal")
     except Exception as e:
-        log.error("Fatal error in event loop:", exc_info=True)
+        log.error("Fatal error in main loop:", exc_info=True)
     finally:
         # Properly close the event loop
         try:
@@ -502,12 +507,24 @@ if __name__ == "__main__":
             # Run the loop until all tasks are done
             if pending:
                 loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            
-            # Run remaining async generators
-            loop.run_until_complete(loop.shutdown_asyncgens())
-        finally:
-            # Close the loop
+                
+            # Stop and close the loop
+            if loop.is_running():
+                loop.stop()
+                
             if not loop.is_closed():
                 loop.close()
+                
+            # Run remaining async generators
+            loop.run_until_complete(loop.shutdown_asyncgens())
             
             log.info("Event loop closed")
+        except Exception as e:
+            log.error("Error during cleanup:", exc_info=True)
+        finally:
+            # Close the loop if it's still open
+            if loop.is_running():
+                loop.stop()
+            if not loop.is_closed():
+                loop.close()
+            log.info("Event loop fully closed")

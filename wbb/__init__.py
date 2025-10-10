@@ -134,20 +134,26 @@ async def load_sudoers():
             SUDOERS.add(user_id)
 
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(load_sudoers())
+# Initialize app2 without starting it
+app2 = None
 
-if not SESSION_STRING:
-    app2 = Client(
-        name="sessions/userbot",
-        api_id=API_ID,
-        api_hash=API_HASH,
-        phone_number=PHONE_NUMBER,
-    )
-else:
-    app2 = Client(
-        name="sessions/userbot", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING
-    )
+def init_userbot():
+    """Initialize the userbot client"""
+    global app2
+    if not SESSION_STRING:
+        app2 = Client(
+            name="sessions/userbot",
+            api_id=API_ID,
+            api_hash=API_HASH,
+            phone_number=PHONE_NUMBER,
+        )
+    else:
+        app2 = Client(
+            name="sessions/userbot", 
+            api_id=API_ID, 
+            api_hash=API_HASH, 
+            session_string=SESSION_STRING
+        )
 
 aiohttpsession = ClientSession()
 
@@ -155,33 +161,74 @@ arq = ARQ(ARQ_API_URL, ARQ_API_KEY, aiohttpsession)
 
 app = Client("sessions/wbb", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 
-log.info("Starting bot client")
-app.start()
-log.info("Starting userbot client")
-app2.start()
+# Global bot and userbot info variables
+BOT_NAME = ""
+BOT_USERNAME = ""
+BOT_MENTION = ""
+BOT_DC_ID = 0
+USERBOT_NAME = ""
+USERBOT_USERNAME = ""
+USERBOT_MENTION = ""
+USERBOT_DC_ID = 0
 
-log.info("Gathering profile info")
-x = app.get_me()
-y = app2.get_me()
+async def start_bot():
+    """Start the bot and userbot clients"""
+    global BOT_NAME, BOT_USERNAME, BOT_MENTION, BOT_DC_ID
+    global USERBOT_NAME, USERBOT_USERNAME, USERBOT_MENTION, USERBOT_DC_ID
+    
+    # Load sudoers first
+    await load_sudoers()
+    
+    # Start bot
+    log.info("Starting bot")
+    await app.start()
+    log.info("Getting bot info")
+    bot_me = await app.get_me()
+    BOT_NAME = bot_me.first_name + (bot_me.last_name or "")
+    BOT_USERNAME = bot_me.username
+    BOT_MENTION = bot_me.mention
+    BOT_DC_ID = bot_me.dc_id
+    log.info(f"Bot started: {BOT_NAME} (@{BOT_USERNAME})")
+    
+    # Initialize and start userbot if needed
+    global app2
+    if not SESSION_STRING:
+        log.info("Initializing userbot")
+        app2 = init_userbot()
+        log.info("Starting userbot")
+        await app2.start()
+        log.info("Getting userbot info")
+        userbot_me = await app2.get_me()
+        USERBOT_NAME = userbot_me.first_name + (userbot_me.last_name or "")
+        USERBOT_USERNAME = userbot_me.username
+        USERBOT_MENTION = userbot_me.mention
+        USERBOT_DC_ID = userbot_me.dc_id
+        log.info(f"Userbot started: {USERBOT_NAME} (@{USERBOT_USERNAME})")
+        
+        # Add userbot to sudoers
+        if userbot_me.id not in SUDOERS:
+            SUDOERS.add(userbot_me.id)
+            log.info(f"Added userbot {userbot_me.id} to sudoers")
+    
+    log.info("Bot initialization complete")
+    
+    # Initialize Telegraph after we have the bot username
+    init_telegraph()
 
-BOT_ID = x.id
-BOT_NAME = x.first_name + (x.last_name or "")
-BOT_USERNAME = x.username
-BOT_MENTION = x.mention
-BOT_DC_ID = x.dc_id
-
-USERBOT_ID = y.id
-USERBOT_NAME = y.first_name + (y.last_name or "")
-USERBOT_USERNAME = y.username
-USERBOT_MENTION = y.mention
-USERBOT_DC_ID = y.dc_id
-
-if USERBOT_ID not in SUDOERS:
-    SUDOERS.add(USERBOT_ID)
-
-log.info("Initializing Telegraph client")
+# Initialize Telegraph client with a default name, will be updated after bot starts
 telegraph = Telegraph(domain="graph.org")
-telegraph.create_account(short_name=BOT_USERNAME)
+
+def init_telegraph():
+    """Initialize the Telegraph client with the bot's username"""
+    try:
+        # This will be called after the bot is started
+        if BOT_USERNAME:
+            telegraph.create_account(short_name=BOT_USERNAME)
+            log.info(f"Initialized Telegraph client for @{BOT_USERNAME}")
+        else:
+            log.warning("Could not initialize Telegraph: BOT_USERNAME not set")
+    except Exception as e:
+        log.error(f"Failed to initialize Telegraph: {e}")
 
 
 async def eor(msg: Message, **kwargs):
