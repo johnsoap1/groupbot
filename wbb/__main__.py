@@ -455,9 +455,59 @@ General command are:
     return await client.answer_callback_query(query.id)
 
 
+async def main():
+    try:
+        # Initialize the bot
+        await start_bot()
+        
+        # Keep the application running
+        await idle()
+        
+    except KeyboardInterrupt:
+        log.warning("Bot stopped by user")
+    except Exception as e:
+        log.error("An error occurred:", exc_info=True)
+    finally:
+        # Cleanup resources
+        log.info("Cleaning up resources...")
+        if 'aiohttpsession' in globals():
+            await aiohttpsession.close()
+        log.info("Bot stopped")
+
 if __name__ == "__main__":
-    install()
-    with closing(loop):
-        with suppress(asyncio.exceptions.CancelledError):
-            loop.run_until_complete(start_bot())
-        loop.run_until_complete(asyncio.sleep(3.0))  # task cancel wait
+    # Install uvloop if available
+    try:
+        install()
+    except Exception as e:
+        log.warning(f"Failed to install uvloop: {e}")
+    
+    # Create and run the event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        log.warning("Received exit signal")
+    except Exception as e:
+        log.error("Fatal error in event loop:", exc_info=True)
+    finally:
+        # Properly close the event loop
+        try:
+            # Cancel all running tasks
+            pending = asyncio.all_tasks(loop=loop)
+            for task in pending:
+                task.cancel()
+            
+            # Run the loop until all tasks are done
+            if pending:
+                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            
+            # Run remaining async generators
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        finally:
+            # Close the loop
+            if not loop.is_closed():
+                loop.close()
+            
+            log.info("Event loop closed")
