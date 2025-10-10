@@ -17,6 +17,19 @@ import re
 
 from wbb import app
 
+# Backward compatibility functions
+async def delete_command_message(message):
+    """Backward compatibility: simply delete command messages."""
+    try:
+        await message.delete()
+        return True
+    except Exception as e:
+        print(f"Error in delete_command_message: {e}")
+        return False
+
+# Alias for older name
+delete_command_message_async = delete_command_message
+
 # Fallback for LOG_GROUP_ID if not in config
 try:
     from wbb import LOG_GROUP_ID
