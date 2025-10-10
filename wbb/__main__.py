@@ -237,7 +237,7 @@ async def start(_, message):
             await message.reply(
                 MARKDOWN,
                 parse_mode=ParseMode.HTML,
-                link_preview_options=LinkPreviewOptions(disable_web_page_preview=True)
+                link_preview_options=LinkPreviewOptions(is_disabled=True)
             )
         elif "_" in name:
             module = name.split("_", 1)[1]
@@ -249,14 +249,14 @@ async def start(_, message):
                 return await message.reply(
                     text=text,
                     reply_markup=FED_MARKUP,
-                    link_preview_options=LinkPreviewOptions(disable_web_page_preview=True)
+                    link_preview_options=LinkPreviewOptions(is_disabled=True)
                 )
             await message.reply(
                 text,
                 reply_markup=InlineKeyboardMarkup(
                     [[InlineKeyboardButton("back", callback_data="help_back")]]
                 ),
-                link_preview_options=LinkPreviewOptions(disable_web_page_preview=True),
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
             )
         elif name == "help":
             text, keyb = await help_parser(message.from_user.first_name)
@@ -310,7 +310,7 @@ async def help_command(_, message):
                 )
                 await message.reply(
                     text,
-                    link_preview_options=LinkPreviewOptions(disable_web_page_preview=True)
+                    link_preview_options=LinkPreviewOptions(is_disabled=True)
                 )
             else:
                 text, help_keyboard = await help_parser(
@@ -319,7 +319,7 @@ async def help_command(_, message):
                 await message.reply(
                     text,
                     reply_markup=help_keyboard,
-                    link_preview_options=LinkPreviewOptions(disable_web_page_preview=True)
+                    link_preview_options=LinkPreviewOptions(is_disabled=True)
                 )
         else:
             text, help_keyboard = await help_parser(
@@ -328,7 +328,7 @@ async def help_command(_, message):
             await message.reply(
                 text,
                 reply_markup=help_keyboard,
-                link_preview_options=LinkPreviewOptions(disable_web_page_preview=True)
+                link_preview_options=LinkPreviewOptions(is_disabled=True)
             )
     return
 
@@ -397,20 +397,19 @@ General command are:
             return await query.message.edit(
                 text=text,
                 reply_markup=FED_MARKUP,
-                link_preview_options=LinkPreviewOptions(disable_web_page_preview=True)
-            )
+                link_preview_options=LinkPreviewOptions(is_disabled=True)
         await query.message.edit(
             text=text,
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("back", callback_data="help_back")]]
-            ),
-            link_preview_options=LinkPreviewOptions(disable_web_page_preview=True),
+                [[InlineKeyboardButton("back", callback_data="help_back")]],
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
     elif home_match:
         await app.send_message(
             query.from_user.id,
             text=home_text_pm,
             reply_markup=home_keyboard_pm,
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
         await query.message.delete()
     elif prev_match:
@@ -420,7 +419,7 @@ General command are:
             reply_markup=InlineKeyboardMarkup(
                 paginate_modules(curr_page - 1, HELPABLE, "help")
             ),
-            link_preview_options=LinkPreviewOptions(disable_web_page_preview=True),
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
 
     elif next_match:
@@ -430,7 +429,7 @@ General command are:
             reply_markup=InlineKeyboardMarkup(
                 paginate_modules(next_page + 1, HELPABLE, "help")
             ),
-            link_preview_options=LinkPreviewOptions(disable_web_page_preview=True),
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
 
     elif back_match:
@@ -439,13 +438,13 @@ General command are:
             reply_markup=InlineKeyboardMarkup(
                 paginate_modules(0, HELPABLE, "help")
             ),
-            link_preview_options=LinkPreviewOptions(disable_web_page_preview=True),
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
         )
 
     elif create_match:
         text, keyboard = await help_parser(query)
         await query.message.edit(
-            text=text,
+{{ ... }}
             reply_markup=keyboard,
             link_preview_options=LinkPreviewOptions(disable_web_page_preview=True),
         )
