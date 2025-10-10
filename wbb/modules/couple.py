@@ -22,10 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import List, Tuple
 
 import pytz
 from pyrogram import enums, filters
+from pyrogram.types import User
 
 from wbb import app
 from wbb.core.decorators.errors import capture_err
@@ -34,83 +36,80 @@ from wbb.utils.dbfunctions import get_couple, save_couple
 __MODULE__ = "Shippering"
 __HELP__ = "/detect_gay - To Choose Couple Of The Day"
 
+# Set the timezone to Indian Standard Time
+IST = pytz.timezone("Asia/Kolkata")
 
-# Date and time
-def dt():
-    # Set the timezone to Indian Standard Time
-    ist_timezone = pytz.timezone("Asia/Kolkata")
+def get_current_ist_datetime() -> datetime:
+    """Get current datetime in IST timezone."""
+    return datetime.now(IST)
 
-    # Get the current time in IST
-    ist_now = datetime.now(ist_timezone)
+def get_date_strings() -> Tuple[str, str]:
+    """
+    Get today's and tomorrow's date strings in DD/MM/YYYY format.
+    Handles month and year transitions.
+    """
+    today = get_current_ist_datetime()
+    tomorrow = today + timedelta(days=1)
+    
+    today_str = today.strftime("%d/%m/%Y")
+    tomorrow_str = tomorrow.strftime("%d/%m/%Y")
+    
+    return today_str, tomorrow_str
 
-    dt_string = ist_now.strftime("%d/%m/%Y %H:%M")
-    dt_list = dt_string.split(" ")
-    return dt_list
-
-
-def dt_tom():
-    a = (
-        str(int(dt()[0].split("/")[0]) + 1)
-        + "/"
-        + dt()[0].split("/")[1]
-        + "/"
-        + dt()[0].split("/")[2]
-    )
-    return a
-
-
-def today():
-    return str(dt()[0])
-
-
-def tomorrow():
-    return str(dt_tom())
-
+async def get_member_list(chat_id: int) -> List[User]:
+    """Get a list of non-bot, non-deleted users in the chat."""
+    members = []
+    async for member in app.get_chat_members(chat_id):
+        if not member.user.is_bot and not member.user.is_deleted:
+            members.append(member.user)
+    return members
 
 @app.on_message(filters.command("detect_gay"))
 @capture_err
 async def couple(_, message):
+    """Handle the /detect_gay command to select a random couple."""
     if message.chat.type == enums.ChatType.PRIVATE:
         return await message.reply_text("This command only works in groups.")
 
-    m = await message.reply("Detecting gay among us...")
+    status = await message.reply("Detecting gay among us...")
+    chat_id = message.chat.id
+    today_str, tomorrow_str = get_date_strings()
 
     try:
-        chat_id = message.chat.id
-        is_selected = await get_couple(chat_id, today())
-        if not is_selected:
-            list_of_users = []
-            async for i in app.get_chat_members(message.chat.id):
-                if not i.user.is_bot and not i.user.is_deleted:
-                    user = await app.get_users(i.user.id)
-                    list_of_users.append(user.id)
-            if len(list_of_users) < 2:
-                return await m.edit("Not enough users")
-            c1_id = random.choice(list_of_users)
-            c2_id = random.choice(list_of_users)
-            while c1_id == c2_id:
-                c1_id = random.choice(list_of_users)
-            c1_mention = (await app.get_users(c1_id)).mention
-            c2_mention = (await app.get_users(c2_id)).mention
+        # Check if a couple was already selected today
+        existing_couple = await get_couple(chat_id, today_str)
+        
+        if existing_couple:
+            # Show existing couple
+            c1 = await app.get_users(existing_couple["c1_id"])
+            c2 = await app.get_users(existing_couple["c2_id"])
+            await status.edit(
+                f"**Couple of the day:**\n"
+                f"[{c1.first_name}](tg://user?id={c1.id}) + "
+                f"[{c2.first_name}](tg://user?id={c2.id}) = ❤️\n\n"
+                f"__New couple of the day may be chosen at 12AM {tomorrow_str}__"
+            )
+            return
 
-            couple_selection_message = f"""**Couple of the day:**
-{c1_mention} + {c2_mention} = ❤️
+        # Select new couple
+        members = await get_member_list(chat_id)
+        if len(members) < 2:
+            return await status.edit("Not enough users to form a couple!")
 
-__New couple of the day may be chosen at 12AM {tomorrow()}__"""
-            await m.edit(couple_selection_message)
-            couple = {"c1_id": c1_id, "c2_id": c2_id}
-            await save_couple(chat_id, today(), couple)
+        # Select two distinct random users
+        c1, c2 = random.sample(members, 2)
+        
+        # Save the new couple
+        couple_data = {"c1_id": c1.id, "c2_id": c2.id}
+        await save_couple(chat_id, today_str, couple_data)
 
-        elif is_selected:
-            c1_id = int(is_selected["c1_id"])
-            c2_id = int(is_selected["c2_id"])
-            c1_name = (await app.get_users(c1_id)).first_name
-            c2_name = (await app.get_users(c2_id)).first_name
-            couple_selection_message = f"""Couple of the day:
-[{c1_name}](tg://openmessage?user_id={c1_id}) + [{c2_name}](tg://openmessage?user_id={c2_id}) = ❤️
+        # Send the result
+        await status.edit(
+            f"**Couple of the day:**\n"
+            f"{c1.mention} + {c2.mention} = ❤️\n\n"
+            f"__New couple of the day may be chosen at 12AM {tomorrow_str}__"
+        )
 
-__New couple of the day may be chosen at 12AM {tomorrow()}__"""
-            await m.edit(couple_selection_message)
     except Exception as e:
-        print(e)
-        await message.reply_text(e)
+        await status.edit(f"An error occurred: {str(e)}")
+        raise
