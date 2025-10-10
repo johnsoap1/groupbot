@@ -398,11 +398,14 @@ General command are:
                 text=text,
                 reply_markup=FED_MARKUP,
                 link_preview_options=LinkPreviewOptions(is_disabled=True)
+            )
+        
         await query.message.edit(
             text=text,
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("back", callback_data="help_back")]],
-            link_preview_options=LinkPreviewOptions(is_disabled=True),
+                [[InlineKeyboardButton("back", callback_data="help_back")]]
+            ),
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
     elif home_match:
         await app.send_message(
