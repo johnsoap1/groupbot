@@ -106,25 +106,20 @@ async def start_bot():
                 HELPABLE[module_display_name.replace(" ", "_").lower()] = imported_module
                 print(f"[MODULE_LOADER] Added to HELPABLE: {module_display_name}")
             
-            # Call module initialization if it exists
-            init_func = getattr(imported_module, "__init__", None)
-            init_class = getattr(imported_module, "__init__class__", None)
-            
+            # Handle module initialization if it has a specific initialization function
             try:
-                if init_class and callable(init_class):
-                    # Handle class-based initialization
-                    if asyncio.iscoroutinefunction(init_class):
-                        await init_class()
+                # Check for specific initialization functions
+                if hasattr(imported_module, "init"):
+                    init_func = getattr(imported_module, "init")
+                    if asyncio.iscoroutinefunction(init_func):
+                        await init_func()
                     else:
-                        init_class()
-                    print(f"[MODULE_LOADER] Initialized class: {module_display_name}")
-                elif hasattr(imported_module, "__init__"):
-                    # Handle module-level initialization function (deprecated)
-                    if asyncio.iscoroutinefunction(imported_module.__init__):
-                        await imported_module.__init__()
-                    else:
-                        imported_module.__init__()
+                        init_func()
                     print(f"[MODULE_LOADER] Initialized: {module_display_name}")
+                # Special case for greetings module
+                elif module_name == "greetings" and hasattr(imported_module, "init_greetings"):
+                    await imported_module.init_greetings()
+                    print(f"[MODULE_LOADER] Initialized greetings module")
             except Exception as e:
                 print(f"[MODULE_LOADER] Error initializing {module_display_name}: {e}")
                 traceback.print_exc()
@@ -547,17 +542,24 @@ async def main():
         # Initialize the bot
         await start_bot()
         
-        # Get the current event loop
-        loop = asyncio.get_event_loop()
-        
-        # Clean restart stage if needed
+        # Clean restart stage with proper error handling and event loop management
         try:
+            # Try to get the running loop first
+            loop = asyncio.get_running_loop()
             restart_data = await clean_restart_stage()
-            if restart_data:
-                print(f"[INFO] Cleaned up restart data: {restart_data}")
-        except Exception as e:
-            print(f"[WARNING] Error cleaning restart stage: {e}")
+        except RuntimeError:
+            # If no running loop, create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                restart_data = await loop.run_until_complete(clean_restart_stage())
+            finally:
+                if not loop.is_closed():
+                    loop.close()
         
+        if restart_data:
+            print(f"[INFO] Cleaned up restart data: {restart_data}")
+            
         print("\n[SUCCESS] Bot is now running. Press Ctrl+C to stop.")
         
         # Keep the application running

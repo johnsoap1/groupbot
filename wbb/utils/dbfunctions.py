@@ -728,21 +728,49 @@ async def clean_restart_stage() -> dict:
               otherwise an empty dict.
     """
     try:
-        data = await restart_stagedb.find_one({"something": "something"})
-        if not data:
-            return {}
-        
-        await restart_stagedb.delete_one({"something": "something"})
-        return {
-            "chat_id": data.get("chat_id"),
-            "message_id": data.get("message_id"),
-        }
+        # Get the current running loop or create a new one if not in an event loop
+        try:
+            loop = asyncio.get_running_loop()
+            # If we're in a running loop, use it directly
+            data = await restart_stagedb.find_one({"something": "something"})
+            if not data:
+                return {}
+            
+            await restart_stagedb.delete_one({"something": "something"})
+            return {
+                "chat_id": data.get("chat_id"),
+                "message_id": data.get("message_id"),
+            }
+            
+        except RuntimeError:
+            # No running event loop, create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                data = await loop.run_until_complete(
+                    restart_stagedb.find_one({"something": "something"})
+                )
+                if not data:
+                    return {}
+                    
+                await loop.run_until_complete(
+                    restart_stagedb.delete_one({"something": "something"})
+                )
+                return {
+                    "chat_id": data.get("chat_id"),
+                    "message_id": data.get("message_id"),
+                }
+            finally:
+                # Clean up the loop if we created it
+                if not loop.is_closed():
+                    loop.close()
+                    
     except Exception as e:
         print(f"[ERROR] Error in clean_restart_stage: {e}")
         import traceback
         traceback.print_exc()
         return {}
-
+{{ ... }}
 # Remove the _clean_restart_stage_internal function as it's no longer needed
 # The functionality is now handled directly in clean_restart_stage
 

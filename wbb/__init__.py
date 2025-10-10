@@ -23,6 +23,7 @@ SOFTWARE.
 """
 import asyncio
 import logging
+import os
 import sys
 import time
 from inspect import getfullargspec
@@ -136,6 +137,9 @@ async def load_sudoers():
 
 # Initialize app2 without starting it
 app2 = None
+
+# DeepL API Key
+DEEPL_API = os.environ.get("DEEPL_API")
 
 def init_userbot():
     """Initialize the userbot client"""
