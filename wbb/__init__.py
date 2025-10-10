@@ -22,6 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import asyncio
+import logging
+import sys
 import time
 from inspect import getfullargspec
 from os import path
@@ -29,11 +31,34 @@ from pathlib import Path
 
 from aiohttp import ClientSession
 from motor.motor_asyncio import AsyncIOMotorClient as MongoClient
-from pyrogram import Client, filters
+from pyrogram import Client, filters, __version__ as pyrogram_version
 from pyrogram.types import Message
 from pyromod import listen
 from Python_ARQ import ARQ
 from telegraph import Telegraph
+
+# Configure root logger
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('bot_debug.log', encoding='utf-8')
+    ]
+)
+
+# Set log levels for noisy libraries
+logging.getLogger('pyrogram').setLevel(logging.WARNING)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
+logging.getLogger('aiohttp').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
+logger.info("=" * 50)
+logger.info("Initializing WilliamButcherBot")
+logger.info(f"Python version: {sys.version}")
+logger.info(f"Pyrogram version: {pyrogram_version}")
+logger.info("=" * 50)
 
 is_config = path.exists("config.py")
 
@@ -56,30 +81,38 @@ bot_start_time = time.time()
 
 
 class Log:
+    """Legacy logger for backward compatibility"""
     def __init__(self, save_to_file=False, file_name="wbb.log"):
+        self.logger = logging.getLogger("wbb.legacy")
         self.save_to_file = save_to_file
         self.file_name = file_name
+        if save_to_file:
+            file_handler = logging.FileHandler(file_name, encoding='utf-8')
+            file_handler.setFormatter(logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            ))
+            self.logger.addHandler(file_handler)
 
-    def info(self, msg):
-        print(f"[+]: {msg}")
-        if self.save_to_file:
-            with open(self.file_name, "a") as f:
-                f.write(f"[INFO]({time.ctime(time.time())}): {msg}\n")
+    def info(self, msg, *args, **kwargs):
+        self.logger.info(msg, *args, **kwargs)
 
-    def error(self, msg):
-        print(f"[-]: {msg}")
-        if self.save_to_file:
-            with open(self.file_name, "a") as f:
-                f.write(f"[ERROR]({time.ctime(time.time())}): {msg}\n")
+    def error(self, msg, *args, **kwargs):
+        self.logger.error(msg, *args, **kwargs)
 
+    def debug(self, msg, *args, **kwargs):
+        self.logger.debug(msg, *args, **kwargs)
 
+    def warning(self, msg, *args, **kwargs):
+        self.logger.warning(msg, *args, **kwargs)
+
+# For backward compatibility
 log = Log(True, "bot.log")
+logger = logging.getLogger("wbb")
 
 # MongoDB client
 log.info("Initializing MongoDB client")
 mongo_client = MongoClient(MONGO_URL)
 db = mongo_client.wbb
-
 
 async def load_sudoers():
     global SUDOERS
