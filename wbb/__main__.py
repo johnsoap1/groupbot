@@ -107,16 +107,27 @@ async def start_bot():
                 print(f"[MODULE_LOADER] Added to HELPABLE: {module_display_name}")
             
             # Call module initialization if it exists
-            if hasattr(imported_module, "__init__"):
-                try:
+            init_func = getattr(imported_module, "__init__", None)
+            init_class = getattr(imported_module, "__init__class__", None)
+            
+            try:
+                if init_class and callable(init_class):
+                    # Handle class-based initialization
+                    if asyncio.iscoroutinefunction(init_class):
+                        await init_class()
+                    else:
+                        init_class()
+                    print(f"[MODULE_LOADER] Initialized class: {module_display_name}")
+                elif hasattr(imported_module, "__init__"):
+                    # Handle module-level initialization function (deprecated)
                     if asyncio.iscoroutinefunction(imported_module.__init__):
                         await imported_module.__init__()
                     else:
                         imported_module.__init__()
                     print(f"[MODULE_LOADER] Initialized: {module_display_name}")
-                except Exception as e:
-                    print(f"[MODULE_LOADER] Error initializing {module_display_name}: {e}")
-                    traceback.print_exc()
+            except Exception as e:
+                print(f"[MODULE_LOADER] Error initializing {module_display_name}: {e}")
+                traceback.print_exc()
             
             loaded_modules.append(module_display_name)
             print(f"[MODULE_LOADER] Successfully loaded: {module_display_name}")

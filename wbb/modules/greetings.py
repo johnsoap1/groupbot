@@ -3,6 +3,9 @@ MIT License
 
 Copyright (c) 2024 TheHamkerCat
 
+import asyncio
+import traceback
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -106,9 +109,28 @@ answers_dicc = []
 
 
 async def get_initial_captcha_cache():
+    """Initialize the captcha cache with proper error handling."""
     global answers_dicc
-    answers_dicc = await get_captcha_cache()
-    return answers_dicc
+    try:
+        # Get the current event loop
+        loop = asyncio.get_event_loop()
+        
+        # Get the captcha cache
+        cache = await get_captcha_cache()
+        
+        if cache and isinstance(cache, list):
+            answers_dicc = cache
+            return answers_dicc
+        
+        # If we get here, the cache is empty or invalid
+        answers_dicc = []
+        return answers_dicc
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to initialize captcha cache: {e}")
+        traceback.print_exc()
+        answers_dicc = []
+        return answers_dicc
 
 
 # This will be called during bot startup
