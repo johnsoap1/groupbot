@@ -207,10 +207,10 @@ Translate text using DeepL API (if configured) or Google Translate.
             # Also check without region code
             base_lang = check_lang.split('-')[0]
             if base_lang not in GOOGLE_LANGS and base_lang.upper() not in DEEPL_LANGS:
-            await message.reply_text(
-                "Unsupported language code. Use /langs to see available languages."
-            )
-            return
+                await message.reply_text(
+                    "Unsupported language code. Use /langs to see available languages."
+                )
+                return
         
         text = message.reply_to_message.text
         
@@ -267,12 +267,19 @@ Translate text using DeepL API (if configured) or Google Translate.
         await message.reply_text(response)
     
     # Add command help to the main help menu
-    __HELP__ = __HELP__
-    
-except Exception as e:
-    print(f"Error in translate module: {e}")
     __HELP__ = """
 **Translate Module**
+- /translate [lang_code]: Translate replied text to specified language
+- /langs: List available language codes
+Example: Reply to a message with `/translate es` to translate to Spanish
+"""
 
-This module is not properly configured. Please check the logs for details.
+except ImportError as e:
+    print(f"Error importing required modules: {e}")
+    __HELP__ = """
+**Translate Module**
+- /translate [lang_code]: Translate replied text to specified language
+- /langs: List available language codes
+
+Note: Some features may be limited due to missing dependencies.
 """
