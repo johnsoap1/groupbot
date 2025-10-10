@@ -26,8 +26,6 @@ import logging
 import os
 import sys
 import time
-from inspect import getfullargspec
-from os import path
 from pathlib import Path
 
 from aiohttp import ClientSession
@@ -38,7 +36,7 @@ from pyromod import listen
 from Python_ARQ import ARQ
 from telegraph import Telegraph
 
-# Configure root logger
+# Logging configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -47,6 +45,7 @@ logging.basicConfig(
         logging.FileHandler('bot_debug.log', encoding='utf-8')
     ]
 )
+logger = logging.getLogger("wbb")
 
 # Set log levels for noisy libraries
 logging.getLogger('pyrogram').setLevel(logging.WARNING)
@@ -54,22 +53,18 @@ logging.getLogger('asyncio').setLevel(logging.WARNING)
 logging.getLogger('aiohttp').setLevel(logging.WARNING)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 
-logger = logging.getLogger(__name__)
-logger.info("=" * 50)
-logger.info("Initializing WilliamButcherBot")
-logger.info(f"Python version: {sys.version}")
-logger.info(f"Pyrogram version: {pyrogram_version}")
-logger.info("=" * 50)
-
-is_config = path.exists("config.py")
-
-if is_config:
-    from config import *
-else:
-    from sample_config import *
-
+# Create sessions folder
 Path("sessions").mkdir(exist_ok=True)
 
+# Load configuration
+try:
+    from config import *
+    logger.info("Loaded configuration from config.py")
+except ImportError:
+    from sample_config import *
+    logger.info("Loaded configuration from sample_config.py")
+
+# Global variables
 USERBOT_PREFIX = USERBOT_PREFIX
 GBAN_LOG_GROUP_ID = GBAN_LOG_GROUP_ID
 WELCOME_DELAY_KICK_SEC = WELCOME_DELAY_KICK_SEC
@@ -80,47 +75,19 @@ MOD_NOLOAD = []
 SUDOERS = filters.user()
 bot_start_time = time.time()
 
-
-class Log:
-    """Legacy logger for backward compatibility"""
-    def __init__(self, save_to_file=False, file_name="wbb.log"):
-        self.logger = logging.getLogger("wbb.legacy")
-        self.save_to_file = save_to_file
-        self.file_name = file_name
-        if save_to_file:
-            file_handler = logging.FileHandler(file_name, encoding='utf-8')
-            file_handler.setFormatter(logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            ))
-            self.logger.addHandler(file_handler)
-
-    def info(self, msg, *args, **kwargs):
-        self.logger.info(msg, *args, **kwargs)
-
-    def error(self, msg, *args, **kwargs):
-        self.logger.error(msg, *args, **kwargs)
-
-    def debug(self, msg, *args, **kwargs):
-        self.logger.debug(msg, *args, **kwargs)
-
-    def warning(self, msg, *args, **kwargs):
-        self.logger.warning(msg, *args, **kwargs)
-
-# For backward compatibility
-log = Log(True, "bot.log")
-logger = logging.getLogger("wbb")
-
-# MongoDB client
-log.info("Initializing MongoDB client")
+# MongoDB connection
 mongo_client = MongoClient(MONGO_URL)
 db = mongo_client.wbb
 
 async def load_sudoers():
+    """Load sudo users from database"""
     global SUDOERS
-    log.info("Loading sudoers")
+    logger.info("Loading sudoers")
     sudoersdb = db.sudoers
     sudoers = await sudoersdb.find_one({"sudo": "sudo"})
     sudoers = [] if not sudoers else sudoers["sudoers"]
+    
+    # Add users from config to sudoers
     for user_id in SUDO_USERS_ID:
         SUDOERS.add(user_id)
         if user_id not in sudoers:
@@ -130,28 +97,28 @@ async def load_sudoers():
                 {"$set": {"sudoers": sudoers}},
                 upsert=True,
             )
-    if sudoers:
-        for user_id in sudoers:
-            SUDOERS.add(user_id)
+    
+    # Add all sudoers to SUDOERS set
+    for user_id in sudoers:
+        SUDOERS.add(user_id)
+    
+    logger.info(f"Loaded {len(SUDOERS)} sudoers")
 
+# Initialize Pyrogram clients
+app = None
+app2 = None
 
-# Initialize clients safely
+# Initialize main bot client
 try:
-    # Initialize main bot client
-    app = Client(
-        "sessions/wbb",
-        bot_token=BOT_TOKEN,
-        api_id=API_ID,
-        api_hash=API_HASH
-    )
+    app = Client("sessions/wbb", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
     logger.info("Main bot client initialized")
 except Exception as e:
     logger.error(f"Failed to initialize main bot client: {e}")
     app = None
 
-# Initialize userbot client
-try:
-    if SESSION_STRING:
+# Initialize userbot client if SESSION_STRING is provided
+if SESSION_STRING:
+    try:
         app2 = Client(
             "sessions/userbot",
             api_id=API_ID,
@@ -159,30 +126,42 @@ try:
             session_string=SESSION_STRING
         )
         logger.info("Userbot client initialized")
-    else:
+    except Exception as e:
+        logger.error(f"Failed to initialize userbot client: {e}")
         app2 = None
-        logger.info("No SESSION_STRING provided, userbot disabled")
-except Exception as e:
-    logger.error(f"Failed to initialize userbot client: {e}")
-    app2 = None
+else:
+    logger.info("No SESSION_STRING provided, userbot disabled")
 
-# DeepL API Key
-DEEPL_API = os.environ.get("DEEPL_API")
+# Global bot and userbot info variables
+BOT_NAME = BOT_USERNAME = BOT_MENTION = ""
+BOT_DC_ID = BOT_ID = 0
+USERBOT_NAME = USERBOT_USERNAME = USERBOT_MENTION = ""
+USERBOT_DC_ID = USERBOT_ID = 0
 
+# Initialize ARQ client
 aiohttpsession = ClientSession()
 arq = ARQ(ARQ_API_URL, ARQ_API_KEY, aiohttpsession)
 
-# Global bot and userbot info variables
-BOT_NAME = ""
-BOT_USERNAME = ""
-BOT_MENTION = ""
-BOT_DC_ID = 0
-BOT_ID = 0
-USERBOT_NAME = ""
-USERBOT_USERNAME = ""
-USERBOT_MENTION = ""
-USERBOT_DC_ID = 0
-USERBOT_ID = 0
+# Initialize Telegraph client (will be configured after bot starts)
+telegraph = Telegraph(domain="graph.org")
+
+def userbot_on_message(*args, **kwargs):
+    """Safe decorator for userbot message handlers.
+    
+    This ensures that @app2.on_message handlers don't break if userbot is not available.
+    
+    Usage:
+        @userbot_on_message(filters.command("start"))
+        async def start(_, message):
+            await message.reply("Hello from userbot!")
+    """
+    if app2:
+        return app2.on_message(*args, **kwargs)
+    
+    # Return a dummy decorator if userbot is not available
+    def decorator(func):
+        return func
+    return decorator
 
 async def start_bot():
     """Start the bot and userbot clients"""
@@ -192,59 +171,48 @@ async def start_bot():
     # Load sudoers first
     await load_sudoers()
     
-    # Start bot if initialized
+    # Start main bot
     if app is None:
-        log.error("Cannot start bot: app is not initialized")
+        logger.error("Cannot start: Main bot client is not initialized")
         return False
         
     try:
-        log.info("Starting bot")
+        logger.info("Starting main bot...")
         await app.start()
-        bot_me = await app.get_me()
-        BOT_NAME = bot_me.first_name + (bot_me.last_name or "")
-        BOT_USERNAME = bot_me.username
-        BOT_MENTION = bot_me.mention
-        BOT_DC_ID = bot_me.dc_id
-        BOT_ID = bot_me.id
-        log.info(f"Bot started: {BOT_NAME} (@{BOT_USERNAME})")
+        
+        # Get bot info
+        me = await app.get_me()
+        BOT_NAME = me.first_name + (" " + me.last_name if me.last_name else "")
+        BOT_USERNAME = me.username
+        BOT_MENTION = me.mention
+        BOT_DC_ID = me.dc_id
+        BOT_ID = me.id
+        
+        logger.info(f"Bot started: {BOT_NAME} (@{BOT_USERNAME})")
     except Exception as e:
-        log.error(f"Failed to start bot: {e}")
+        logger.error(f"Failed to start main bot: {e}")
         return False
     
     # Start userbot if available
     if app2 is not None:
         try:
-            log.info("Starting userbot")
+            logger.info("Starting userbot...")
             await app2.start()
-            userbot_me = await app2.get_me()
-            USERBOT_NAME = userbot_me.first_name + (userbot_me.last_name or "")
-            USERBOT_USERNAME = userbot_me.username
-            USERBOT_MENTION = userbot_me.mention
-            USERBOT_DC_ID = userbot_me.dc_id
-            USERBOT_ID = userbot_me.id
-            log.info(f"Userbot started: {USERBOT_NAME} (@{USERBOT_USERNAME})")
+            
+            # Get userbot info
+            me2 = await app2.get_me()
+            USERBOT_NAME = me2.first_name + (" " + me2.last_name if me2.last_name else "")
+            USERBOT_USERNAME = me2.username
+            USERBOT_MENTION = me2.mention
+            USERBOT_DC_ID = me2.dc_id
+            USERBOT_ID = me2.id
+            
+            logger.info(f"Userbot started: {USERBOT_NAME} (@{USERBOT_USERNAME})")
         except Exception as e:
-            log.error(f"Failed to start userbot: {e}")
+            logger.error(f"Failed to start userbot: {e}")
             app2 = None
     
-    return True
-    
-    # Initialize and start userbot if needed
-    global app2
-    if not SESSION_STRING:
-        log.info("Initializing userbot")
-        app2 = init_userbot()
-        log.info("Starting userbot")
-        await app2.start()
-        log.info("Getting userbot info")
-        userbot_me = await app2.get_me()
-        USERBOT_NAME = userbot_me.first_name + (userbot_me.last_name or "")
-        USERBOT_USERNAME = userbot_me.username
-        USERBOT_MENTION = userbot_me.mention
-        USERBOT_DC_ID = userbot_me.dc_id
-        log.info(f"Userbot started: {USERBOT_NAME} (@{USERBOT_USERNAME})")
-        
-        # Add userbot to sudoers
+    # Initialize Telegraph with bot username if available
         if userbot_me.id not in SUDOERS:
             SUDOERS.add(userbot_me.id)
             log.info(f"Added userbot {userbot_me.id} to sudoers")

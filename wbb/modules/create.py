@@ -33,22 +33,32 @@ from pyrogram.types import (
 from wbb import BOT_USERNAME, SUDOERS, USERBOT_PREFIX, app2
 from wbb.modules.userbot import eor
 
+# Safe userbot decorator
+def userbot_on_message(*args, **kwargs):
+    if app2:
+        return app2.on_message(*args, **kwargs)
+    # Dummy decorator if userbot is not initialized
+    def dummy(func):
+        return func
+    return dummy
 
-@app2.on_message(
+@userbot_on_message(
     SUDOERS
     & ~filters.forwarded
     & ~filters.via_bot
     & filters.command("create", prefixes=USERBOT_PREFIX)
 )
-async def create(_, message):
+async def create(_, message: Message):
     if len(message.command) < 3:
         return await eor(message, text="__**.create (b|s|c) Name**__")
+
     group_type = message.command[1]
     split = message.command[2:]
     group_name = " ".join(split)
-    desc = "Welcome To My " + (
-        "Supergroup" if group_type == "s" else "Channel"
-    )
+    desc = "Welcome To My " + ("Supergroup" if group_type == "s" else "Channel")
+
+    if group_type not in ["b", "s", "c"]:
+        return await eor(message, text="Invalid type! Use b|s|c.")
     if group_type == "b":  # for basicgroup
         chat = await app2.create_group(group_name, BOT_USERNAME)
         link = await app2.get_chat(chat.id)
