@@ -3,6 +3,8 @@ MIT License
 
 Copyright (c) 2024 TheHamkerCat
 
+import asyncio
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
@@ -719,45 +721,30 @@ async def start_restart_stage(chat_id: int, message_id: int):
 
 
 async def clean_restart_stage() -> dict:
-    try:
-        # Get the current event loop
-        loop = asyncio.get_event_loop()
-        
-        # Ensure we're running in the correct event loop
-        if loop.is_running():
-            data = await restart_stagedb.find_one({"something": "something"})
-            if not data:
-                return {}
-            
-            await restart_stagedb.delete_one({"something": "something"})
-            return {
-                "chat_id": data.get("chat_id"),
-                "message_id": data.get("message_id"),
-            }
-        else:
-            # If no event loop is running, run the coroutine in a new event loop
-            return await loop.run_until_complete(_clean_restart_stage_internal())
-    except Exception as e:
-        print(f"[ERROR] Error in clean_restart_stage: {e}")
-        import traceback
-        traceback.print_exc()
-        return {}
-
-async def _clean_restart_stage_internal() -> dict:
-    """Internal function to handle the database operation with proper error handling."""
+    """Clean up restart stage data from the database.
+    
+    Returns:
+        dict: A dictionary containing chat_id and message_id if data exists, 
+              otherwise an empty dict.
+    """
     try:
         data = await restart_stagedb.find_one({"something": "something"})
         if not data:
             return {}
-            
+        
         await restart_stagedb.delete_one({"something": "something"})
         return {
             "chat_id": data.get("chat_id"),
             "message_id": data.get("message_id"),
         }
     except Exception as e:
-        print(f"[ERROR] Error in _clean_restart_stage_internal: {e}")
+        print(f"[ERROR] Error in clean_restart_stage: {e}")
+        import traceback
+        traceback.print_exc()
         return {}
+
+# Remove the _clean_restart_stage_internal function as it's no longer needed
+# The functionality is now handled directly in clean_restart_stage
 
 
 async def is_flood_on(chat_id: int) -> bool:
