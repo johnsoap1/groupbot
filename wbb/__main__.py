@@ -447,9 +447,9 @@ General command are:
     elif create_match:
         text, keyboard = await help_parser(query)
         await query.message.edit(
-{{ ... }}
+            text=text,
             reply_markup=keyboard,
-            link_preview_options=LinkPreviewOptions(disable_web_page_preview=True),
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
 
     return await client.answer_callback_query(query.id)
