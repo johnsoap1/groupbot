@@ -96,8 +96,70 @@ thehamkercat@arch:~$ sudo docker build . -t wbb
 thehamkercat@arch:~$ sudo docker run wbb
 ```
 
-<h2 align="center"> 
-   ⇝ Write new modules ⇜
+<h2 align="center">
+   ⇝ Available Modules ⇜
+</h2>
+
+### 🤖 Administration
+- `admin.py` - Core admin commands (ban, mute, promote, etc.)
+- `admin_misc.py` - Additional admin utilities
+- `sudoers.py` - Sudo user management
+- `flood.py` - Anti-flood protection
+- `locks.py` - Chat permission locks
+- `blacklist.py` - User blacklisting
+- `blacklist_chat.py` - Chat blacklisting
+- `region_blocker.py` - Regional restrictions
+
+### 👋 Greetings & Welcome
+- `greetings.py` - Welcome messages and captcha
+- `autoapprove.py` - Auto-approve join requests
+- `pmpermit.py` - PM security and permissions
+
+### 🔍 Information & Utilities
+- `info.py` - User and chat information
+- `global_stats.py` - Bot usage statistics
+- `command_cleaner.py` - Clean up command messages
+- `misc.py` - Miscellaneous utility commands
+- `dice.py` - Dice and random number generation
+- `carbon.py` - Code to image generation
+- `quotly.py` - Create quote messages
+- `telegraph.py` - Upload files to Telegraph
+- `translate.py` - Message translation
+- `tts.py` - Text-to-speech conversion
+
+### 🛡️ Security & Moderation
+- `antiservice.py` - Service message handling
+- `chat_watcher.py` - Monitor chat activities
+- `feds.py` - Federation ban system
+- `filters.py` - Custom chat filters
+- `regex.py` - Regex pattern matching
+- `taglogger.py` - Log user mentions
+- `trigger.py` - Custom triggers and responses
+
+### 🎵 Media & Files
+- `download_upload.py` - File handling
+- `music.py` - Music playback
+- `stickers.py` - Sticker utilities
+- `parse_preview.py` - Link previews
+
+### 🛠️ System & Maintenance
+- `arq.py` - ARQ task queue
+- `mongo_backup.py` - Database backups
+- `sudo.py` - Sudo commands
+- `userbot.py` - Userbot functionality
+
+### 🔄 Automation
+- `autocorrect.py` - Auto-correct messages
+- `pipes.py` - Message piping between chats
+- `rss.py` - RSS feed monitoring
+
+### 🎮 Fun & Games
+- `couple.py` - Couple pairing
+- `create.py` - Create custom commands
+- `reverse.py` - Reverse image search
+
+<h2 align="center">
+   ⇝ Write New Modules ⇜
 </h2>
 
 ```py
