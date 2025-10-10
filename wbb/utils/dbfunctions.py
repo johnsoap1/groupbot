@@ -770,7 +770,7 @@ async def clean_restart_stage() -> dict:
         import traceback
         traceback.print_exc()
         return {}
-{{ ... }}
+
 # Remove the _clean_restart_stage_internal function as it's no longer needed
 # The functionality is now handled directly in clean_restart_stage
 
