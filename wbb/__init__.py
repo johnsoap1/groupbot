@@ -135,68 +135,99 @@ async def load_sudoers():
             SUDOERS.add(user_id)
 
 
-# Initialize app2 without starting it
-app2 = None
+# Initialize clients safely
+try:
+    # Initialize main bot client
+    app = Client(
+        "sessions/wbb",
+        bot_token=BOT_TOKEN,
+        api_id=API_ID,
+        api_hash=API_HASH
+    )
+    logger.info("Main bot client initialized")
+except Exception as e:
+    logger.error(f"Failed to initialize main bot client: {e}")
+    app = None
+
+# Initialize userbot client
+try:
+    if SESSION_STRING:
+        app2 = Client(
+            "sessions/userbot",
+            api_id=API_ID,
+            api_hash=API_HASH,
+            session_string=SESSION_STRING
+        )
+        logger.info("Userbot client initialized")
+    else:
+        app2 = None
+        logger.info("No SESSION_STRING provided, userbot disabled")
+except Exception as e:
+    logger.error(f"Failed to initialize userbot client: {e}")
+    app2 = None
 
 # DeepL API Key
 DEEPL_API = os.environ.get("DEEPL_API")
 
-# Bot ID (will be set during bot startup)
-BOT_ID = None
-
-def init_userbot():
-    """Initialize the userbot client"""
-    global app2
-    if not SESSION_STRING:
-        app2 = Client(
-            name="sessions/userbot",
-            api_id=API_ID,
-            api_hash=API_HASH,
-            phone_number=PHONE_NUMBER,
-        )
-    else:
-        app2 = Client(
-            name="sessions/userbot", 
-            api_id=API_ID, 
-            api_hash=API_HASH, 
-            session_string=SESSION_STRING
-        )
-
 aiohttpsession = ClientSession()
-
 arq = ARQ(ARQ_API_URL, ARQ_API_KEY, aiohttpsession)
-
-app = Client("sessions/wbb", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 
 # Global bot and userbot info variables
 BOT_NAME = ""
 BOT_USERNAME = ""
 BOT_MENTION = ""
 BOT_DC_ID = 0
+BOT_ID = 0
 USERBOT_NAME = ""
 USERBOT_USERNAME = ""
 USERBOT_MENTION = ""
 USERBOT_DC_ID = 0
+USERBOT_ID = 0
 
 async def start_bot():
     """Start the bot and userbot clients"""
     global BOT_NAME, BOT_USERNAME, BOT_MENTION, BOT_DC_ID, BOT_ID
-    global USERBOT_NAME, USERBOT_USERNAME, USERBOT_MENTION, USERBOT_DC_ID
+    global USERBOT_NAME, USERBOT_USERNAME, USERBOT_MENTION, USERBOT_DC_ID, USERBOT_ID
     
     # Load sudoers first
     await load_sudoers()
     
-    # Start bot
-    log.info("Starting bot")
-    await app.start()
-    log.info("Getting bot info")
-    bot_me = await app.get_me()
-    BOT_NAME = bot_me.first_name + (bot_me.last_name or "")
-    BOT_USERNAME = bot_me.username
-    BOT_MENTION = bot_me.mention
-    BOT_DC_ID = bot_me.dc_id
-    BOT_ID = bot_me.id
-    log.info(f"Bot started: {BOT_NAME} (@{BOT_USERNAME})")
+    # Start bot if initialized
+    if app is None:
+        log.error("Cannot start bot: app is not initialized")
+        return False
+        
+    try:
+        log.info("Starting bot")
+        await app.start()
+        bot_me = await app.get_me()
+        BOT_NAME = bot_me.first_name + (bot_me.last_name or "")
+        BOT_USERNAME = bot_me.username
+        BOT_MENTION = bot_me.mention
+        BOT_DC_ID = bot_me.dc_id
+        BOT_ID = bot_me.id
+        log.info(f"Bot started: {BOT_NAME} (@{BOT_USERNAME})")
+    except Exception as e:
+        log.error(f"Failed to start bot: {e}")
+        return False
+    
+    # Start userbot if available
+    if app2 is not None:
+        try:
+            log.info("Starting userbot")
+            await app2.start()
+            userbot_me = await app2.get_me()
+            USERBOT_NAME = userbot_me.first_name + (userbot_me.last_name or "")
+            USERBOT_USERNAME = userbot_me.username
+            USERBOT_MENTION = userbot_me.mention
+            USERBOT_DC_ID = userbot_me.dc_id
+            USERBOT_ID = userbot_me.id
+            log.info(f"Userbot started: {USERBOT_NAME} (@{USERBOT_USERNAME})")
+        except Exception as e:
+            log.error(f"Failed to start userbot: {e}")
+            app2 = None
+    
+    return True
     
     # Initialize and start userbot if needed
     global app2
