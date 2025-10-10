@@ -141,6 +141,9 @@ app2 = None
 # DeepL API Key
 DEEPL_API = os.environ.get("DEEPL_API")
 
+# Bot ID (will be set during bot startup)
+BOT_ID = None
+
 def init_userbot():
     """Initialize the userbot client"""
     global app2
@@ -177,7 +180,7 @@ USERBOT_DC_ID = 0
 
 async def start_bot():
     """Start the bot and userbot clients"""
-    global BOT_NAME, BOT_USERNAME, BOT_MENTION, BOT_DC_ID
+    global BOT_NAME, BOT_USERNAME, BOT_MENTION, BOT_DC_ID, BOT_ID
     global USERBOT_NAME, USERBOT_USERNAME, USERBOT_MENTION, USERBOT_DC_ID
     
     # Load sudoers first
@@ -192,6 +195,7 @@ async def start_bot():
     BOT_USERNAME = bot_me.username
     BOT_MENTION = bot_me.mention
     BOT_DC_ID = bot_me.dc_id
+    BOT_ID = bot_me.id
     log.info(f"Bot started: {BOT_NAME} (@{BOT_USERNAME})")
     
     # Initialize and start userbot if needed
