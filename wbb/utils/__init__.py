@@ -21,5 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+
+from .command_cleaner import delete_command_message, delete_command_message_async
 from .misc import paginate_modules  # noqa: F401
 from .read_lines import random_line  # noqa: F401
