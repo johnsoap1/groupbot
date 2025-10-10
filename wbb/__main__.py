@@ -186,12 +186,36 @@ async def start_bot():
 
     await idle()
 
-    await aiohttpsession.close()
-    log.info("Stopping clients")
-    await app.stop()
-    log.info("Cancelling asyncio tasks")
+    # Close aiohttp session if it exists
+    if 'aiohttpsession' in globals() and aiohttpsession:
+        await aiohttpsession.close()
+        log.info("Closed aiohttp session")
+    
+    # Safely stop the Pyrogram client
+    try:
+        if app and hasattr(app, 'is_connected') and app.is_connected:
+            log.info("Stopping Pyrogram client...")
+            await app.stop()
+            log.info("Pyrogram client stopped successfully")
+    except ConnectionError:
+        log.warning("Client was already disconnected")
+    except Exception as e:
+        log.error(f"Error while stopping Pyrogram client: {e}")
+    
+    # Cancel any remaining tasks
+    log.info("Cancelling asyncio tasks...")
+    current_task = asyncio.current_task()
     for task in asyncio.all_tasks():
-        task.cancel()
+        if task is not current_task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                log.error(f"Error cancelling task {task.get_name()}: {e}")
+    
+    log.info("Shutdown complete")
     log.info("Dead!")
 
 
