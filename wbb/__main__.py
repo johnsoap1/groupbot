@@ -37,7 +37,7 @@ from pyrogram.types import (
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
 )
-from pyrogram.enums import ParseMode
+from pyrogram.enums import ParseMode, ChatType
 from uvloop import install
 
 from wbb import (
